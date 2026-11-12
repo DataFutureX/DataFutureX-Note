@@ -1,0 +1,36 @@
+appId: com.datafuturex.note
+productName: DataFutureX-Note
+electronDist: node_modules/electron/dist
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - resources/icon.ico
+  - resources/icon.png
+  - resources/tray-16.png
+  - resources/tray-32.png
+extraResources:
+  - from: resources/icon.ico
+    to: icon.ico
+  - from: resources/tray-16.png
+    to: tray-16.png
+  - from: resources/tray-32.png
+    to: tray-32.png
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: ${productName}-${version}-Setup.${ext}
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 数字未来笔记
+  uninstallDisplayName: DataFutureX-Note 数字未来笔记
+  deleteAppDataOnUninstall: false

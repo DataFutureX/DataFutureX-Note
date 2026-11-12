@@ -1,0 +1,265 @@
+:root {
+  /* 默认 = 柔蓝浅色 */
+  --app-bg: #f3f6fb;
+  --panel-bg: #fbfdff;
+  --editor-bg: #fbfdff;
+  --preview-bg: #fbfdff;
+  --text-primary: #1e2430;
+  --text-secondary: #5c6678;
+  --text-muted: #8a93a6;
+  --border-color: #dce3ee;
+  --selection-bg: #e4eefc;
+  --accent-color: #5b8fd9;
+  --accent-hover: #4a7bc4;
+  --danger-color: #d14343;
+  --success-color: #2f9e44;
+  --toolbar-bg: #f5f8fc;
+  --hover-bg: #e8eef8;
+  --tree-active: #e4eefc;
+  --scrollbar-thumb: #b8c4d4;
+  --code-bg: #f0f4fa;
+  --blockquote-border: #c5d4e8;
+  --shadow-soft: 0 1px 2px rgba(40, 80, 140, 0.05);
+  --font-ui: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-mono: Consolas, "Courier New", monospace;
+  --titlebar-height: 48px;
+  --shell-titlebar-height: 40px;
+  --pane-header-height: 36px;
+  --pane-subheader-height: 36px;
+  --radius: 6px;
+  --el-color-primary: var(--accent-color);
+}
+
+/*
+ * 主题色浅色变体：仅在非深色时生效。
+ * 勿在 body.dark 上挂 token，否则会盖住 html 上的主题色深色变体。
+ */
+
+/* —— 暖黄 · 浅色 —— */
+html[data-accent='amber']:not(.dark):not([data-theme='dark']) {
+  --app-bg: #f7f5f0;
+  --panel-bg: #fffdf8;
+  --editor-bg: #fffdf8;
+  --preview-bg: #fffdf8;
+  --toolbar-bg: #faf6ee;
+  --hover-bg: #f3ebe0;
+  --selection-bg: #fef3c7;
+  --tree-active: #fef3c7;
+  --accent-color: #d97706;
+  --accent-hover: #b45309;
+  --blockquote-border: #f0d9a8;
+}
+
+/* —— 柔蓝 · 浅色（默认） —— */
+html[data-accent='blue']:not(.dark):not([data-theme='dark']) {
+  --app-bg: #f3f6fb;
+  --panel-bg: #fbfdff;
+  --editor-bg: #fbfdff;
+  --preview-bg: #fbfdff;
+  --toolbar-bg: #f5f8fc;
+  --hover-bg: #e8eef8;
+  --border-color: #dce3ee;
+  --text-primary: #1e2430;
+  --text-secondary: #5c6678;
+  --text-muted: #8a93a6;
+  --selection-bg: #e4eefc;
+  --tree-active: #e4eefc;
+  --accent-color: #5b8fd9;
+  --accent-hover: #4a7bc4;
+  --code-bg: #f0f4fa;
+  --blockquote-border: #c5d4e8;
+  --scrollbar-thumb: #b8c4d4;
+  --shadow-soft: 0 1px 2px rgba(40, 80, 140, 0.05);
+}
+
+/* —— 纸感 · 浅色 —— */
+html[data-accent='paper']:not(.dark):not([data-theme='dark']) {
+  --app-bg: #efece4;
+  --panel-bg: #faf7f0;
+  --editor-bg: #faf7f0;
+  --preview-bg: #faf7f0;
+  --toolbar-bg: #f3efe6;
+  --hover-bg: #e8e2d6;
+  --border-color: #ddd6c8;
+  --text-primary: #2c2924;
+  --text-secondary: #6b6458;
+  --text-muted: #948b7c;
+  --selection-bg: #ebe4d4;
+  --tree-active: #ebe4d4;
+  --accent-color: #8b7355;
+  --accent-hover: #6f5a42;
+  --code-bg: #f0ebe2;
+  --blockquote-border: #cfc5b4;
+  --scrollbar-thumb: #c4bbaa;
+}
+
+/* —— 柔绿 · 浅色 —— */
+html[data-accent='green']:not(.dark):not([data-theme='dark']) {
+  --app-bg: #f3f6f4;
+  --panel-bg: #f7fbf8;
+  --editor-bg: #f7fbf8;
+  --preview-bg: #f7fbf8;
+  --toolbar-bg: #f5faf6;
+  --hover-bg: #e8f0ea;
+  --selection-bg: #d1fae5;
+  --tree-active: #d1fae5;
+  --accent-color: #059669;
+  --accent-hover: #047857;
+  --blockquote-border: #a7d7c0;
+}
+
+/* —— 灰白 · 浅色 —— */
+html[data-accent='mono']:not(.dark):not([data-theme='dark']) {
+  --app-bg: #f3f3f3;
+  --panel-bg: #fafafa;
+  --editor-bg: #fafafa;
+  --preview-bg: #fafafa;
+  --toolbar-bg: #f3f3f3;
+  --hover-bg: #eaeaea;
+  --border-color: #e0e0e0;
+  --text-primary: #404040;
+  --text-secondary: #6b6b6b;
+  --text-muted: #9a9a9a;
+  --selection-bg: #e8e8e8;
+  --tree-active: #e8e8e8;
+  --accent-color: #525252;
+  --accent-hover: #404040;
+  --danger-color: #b91c1c;
+  --success-color: #166534;
+  --code-bg: #efefef;
+  --blockquote-border: #d4d4d4;
+  --scrollbar-thumb: #bdbdbd;
+  --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* —— 深色基线（柔蓝深色） —— */
+html.dark,
+html[data-theme='dark'] {
+  --app-bg: #12151c;
+  --panel-bg: #181c26;
+  --editor-bg: #151922;
+  --preview-bg: #151922;
+  --text-primary: #e6eaf2;
+  --text-secondary: #9aa3b5;
+  --text-muted: #6d768a;
+  --border-color: #2a3140;
+  --selection-bg: #243548;
+  --accent-color: #7aabf0;
+  --accent-hover: #9bc0f5;
+  --danger-color: #f07178;
+  --success-color: #7fd992;
+  --toolbar-bg: #181c26;
+  --hover-bg: #222836;
+  --tree-active: #243548;
+  --scrollbar-thumb: #3a4558;
+  --code-bg: #10141c;
+  --blockquote-border: #3a4558;
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* —— 暖黄 · 深色 —— */
+html.dark[data-accent='amber'],
+html[data-theme='dark'][data-accent='amber'] {
+  --app-bg: #16130f;
+  --panel-bg: #1e1a14;
+  --editor-bg: #1a1610;
+  --preview-bg: #1a1610;
+  --toolbar-bg: #1e1a14;
+  --hover-bg: #2a2418;
+  --border-color: #3a3224;
+  --selection-bg: #3d2e14;
+  --tree-active: #3d2e14;
+  --accent-color: #fbbf24;
+  --accent-hover: #fcd34d;
+  --blockquote-border: #5c4a28;
+  --code-bg: #12100c;
+  --scrollbar-thumb: #4a3f2e;
+}
+
+/* —— 柔蓝 · 深色 —— */
+html.dark[data-accent='blue'],
+html[data-theme='dark'][data-accent='blue'] {
+  --app-bg: #12151c;
+  --panel-bg: #181c26;
+  --editor-bg: #151922;
+  --preview-bg: #151922;
+  --toolbar-bg: #181c26;
+  --hover-bg: #222836;
+  --border-color: #2a3140;
+  --text-primary: #e6eaf2;
+  --text-secondary: #9aa3b5;
+  --text-muted: #6d768a;
+  --selection-bg: #243548;
+  --tree-active: #243548;
+  --accent-color: #7aabf0;
+  --accent-hover: #9bc0f5;
+  --code-bg: #10141c;
+  --blockquote-border: #3a4558;
+  --scrollbar-thumb: #3a4558;
+}
+
+/* —— 纸感 · 深色 —— */
+html.dark[data-accent='paper'],
+html[data-theme='dark'][data-accent='paper'] {
+  --app-bg: #161410;
+  --panel-bg: #1f1c17;
+  --editor-bg: #1a1814;
+  --preview-bg: #1a1814;
+  --toolbar-bg: #1f1c17;
+  --hover-bg: #2a2620;
+  --border-color: #3a342c;
+  --text-primary: #ebe6dc;
+  --text-secondary: #b0a898;
+  --text-muted: #7a7266;
+  --selection-bg: #3a3428;
+  --tree-active: #3a3428;
+  --accent-color: #c4a882;
+  --accent-hover: #d4bc98;
+  --code-bg: #12100c;
+  --blockquote-border: #4a4238;
+  --scrollbar-thumb: #4a4238;
+}
+
+/* —— 柔绿 · 深色 —— */
+html.dark[data-accent='green'],
+html[data-theme='dark'][data-accent='green'] {
+  --app-bg: #101614;
+  --panel-bg: #161e1a;
+  --editor-bg: #131a16;
+  --preview-bg: #131a16;
+  --toolbar-bg: #161e1a;
+  --hover-bg: #1e2a24;
+  --border-color: #2a3a32;
+  --selection-bg: #1a3a2e;
+  --tree-active: #1a3a2e;
+  --accent-color: #34d399;
+  --accent-hover: #6ee7b7;
+  --blockquote-border: #2f5a48;
+  --code-bg: #0c1210;
+  --scrollbar-thumb: #3a4a42;
+}
+
+/* —— 灰白 · 深色 —— */
+html.dark[data-accent='mono'],
+html[data-theme='dark'][data-accent='mono'] {
+  --app-bg: #121212;
+  --panel-bg: #1a1a1a;
+  --editor-bg: #141414;
+  --preview-bg: #141414;
+  --toolbar-bg: #1a1a1a;
+  --hover-bg: #242424;
+  --border-color: #2e2e2e;
+  --text-primary: #e5e5e5;
+  --text-secondary: #a3a3a3;
+  --text-muted: #7a7a7a;
+  --selection-bg: #2a2a2a;
+  --tree-active: #2a2a2a;
+  --accent-color: #d4d4d4;
+  --accent-hover: #e5e5e5;
+  --danger-color: #f87171;
+  --success-color: #86efac;
+  --code-bg: #1f1f1f;
+  --blockquote-border: #3a3a3a;
+  --scrollbar-thumb: #454545;
+  --shadow-soft: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="DataFutureX Note">
+  <defs>
+    <linearGradient id="face" x1="18" y1="18" x2="110" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7aa6e3"/>
+      <stop offset="100%" stop-color="#5b8fd9"/>
+    </linearGradient>
+  </defs>
+  <polygon fill="url(#face)" points="16,16 112,16 112,88 88,112 16,112"/>
+  <polygon fill="#4a7bc4" points="88,112 112,88 88,88"/>
+  <path d="M88 88 L112 88 L88 112" fill="none" stroke="#8eb0e6" stroke-width="2" stroke-linejoin="round" opacity="0.55"/>
+  <rect x="36" y="42" width="48" height="8" rx="4" fill="#ffffff"/>
+  <rect x="36" y="58" width="40" height="8" rx="4" fill="#ffffff" opacity="0.92"/>
+  <rect x="36" y="74" width="28" height="8" rx="4" fill="#ffffff" opacity="0.8"/>
+</svg>

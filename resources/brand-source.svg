@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="DataFutureX">
+  <style>
+    .mark { fill: #3d444d; }
+    @media (prefers-color-scheme: dark) {
+      .mark { fill: #ffffff; }
+    }
+  </style>
+  <polygon class="mark" points="4,4 28,4 28,22 22,28 4,28" />
+</svg>
