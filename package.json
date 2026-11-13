@@ -60,7 +60,8 @@
     "productName": "DataFutureX Note",
     "electronDist": "node_modules/electron/dist",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -100,11 +101,15 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "DataFutureX Note",
-      "uninstallDisplayName": "DataFutureX Note",
-      "deleteAppDataOnUninstall": false
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": false,
+      "shortcutName": "数字未来笔记",
+      "uninstallDisplayName": "DataFutureX Note（数字未来笔记）",
+      "deleteAppDataOnUninstall": false,
+      "include": "installer.nsh",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "installerHeaderIcon": "resources/icon.ico"
     }
   },
   "allowScripts": {

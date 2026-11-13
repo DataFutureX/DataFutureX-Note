@@ -180,4 +180,9 @@ fs.writeFileSync(
   ])
 )
 
-console.log('Generated soft-blue logo icons in resources/')
+// 同步到 electron-builder buildResources，供安装包 / 快捷方式使用
+const buildDir = path.join(__dirname, '../build')
+fs.mkdirSync(buildDir, { recursive: true })
+fs.copyFileSync(path.join(outDir, 'icon.ico'), path.join(buildDir, 'icon.ico'))
+
+console.log('Generated soft-blue logo icons in resources/ (+ build/icon.ico)')

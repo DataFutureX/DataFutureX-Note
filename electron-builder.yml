@@ -1,8 +1,11 @@
 appId: com.datafuturex.note
-productName: DataFutureX-Note
+productName: DataFutureX Note
 electronDist: node_modules/electron/dist
 directories:
   output: release
+  buildResources: build
+# 打包后把 Logo 写入 exe，桌面快捷方式才能显示 Logo
+afterPack: scripts/after-pack.mjs
 files:
   - dist/**/*
   - dist-electron/**/*
@@ -22,15 +25,22 @@ win:
     - target: nsis
       arch:
         - x64
+  # Logo 图标（与 logo-mark / npm run icon 同源）
   icon: resources/icon.ico
   artifactName: ${productName}-${version}-Setup.${ext}
+  # 关闭自动 rcedit/签名，改由 afterPack 单独写入 Logo，避免 winCodeSign 缓存问题
   signAndEditExecutable: false
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
+  # 由 build/installer.nsh 统一创建（显式引用 Logo icon.ico）
+  createDesktopShortcut: false
+  createStartMenuShortcut: false
   shortcutName: 数字未来笔记
-  uninstallDisplayName: DataFutureX-Note 数字未来笔记
+  uninstallDisplayName: DataFutureX Note（数字未来笔记）
   deleteAppDataOnUninstall: false
+  include: installer.nsh
+  installerIcon: icon.ico
+  uninstallerIcon: icon.ico
+  installerHeaderIcon: icon.ico
