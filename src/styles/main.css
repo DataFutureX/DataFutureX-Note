@@ -210,13 +210,18 @@ select {
 .status-dot.failed { background: var(--danger-color); }
 
 .markdown-body {
-  font-size: 15px;
-  line-height: 1.75;
+  font-family: var(--font-content);
+  font-size: var(--content-font-size, 16px);
+  font-weight: var(--content-font-weight, 500);
+  line-height: var(--content-line-height, 1.85);
+  letter-spacing: 0.02em;
   color: var(--text-primary);
   padding: 8px 20px 40px;
   max-width: none;
   width: 100%;
   box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .markdown-body h1,
@@ -227,6 +232,9 @@ select {
 .markdown-body h6 {
   margin: 1.2em 0 0.6em;
   line-height: 1.35;
+  font-family: var(--font-content);
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 .markdown-body h1 { font-size: 1.8em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }

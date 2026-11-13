@@ -160,8 +160,8 @@ export class TrayService {
    */
   private materializeTrayIcon(): string {
     const dir = resourcesDir()
-    // 优先原生 16/32 托盘图（文档折角 logo），避免错误缩放后看不清
-    const candidates = ['tray-16.png', 'tray-32.png', 'icon-48.png', 'icon-256.png', 'icon.png']
+    // 优先较大托盘图（32/24），值守栏里更清晰
+    const candidates = ['tray-32.png', 'tray-24.png', 'tray-20.png', 'tray-16.png', 'icon-48.png', 'icon-256.png', 'icon.png']
     let src = ''
     for (const name of candidates) {
       const p = path.join(dir, name)
@@ -181,8 +181,8 @@ export class TrayService {
     try {
       const destDir = path.join(app.getPath('userData'), 'tray-icons')
       fs.mkdirSync(destDir, { recursive: true })
-      // 版本后缀：强制替换旧的错误托盘缓存
-      const dest = path.join(destDir, 'tray-notify-softblue.png')
+      // 换文件名强制刷新旧的 16px / 留白过大缓存
+      const dest = path.join(destDir, 'tray-notify-softblue-32.png')
       fs.copyFileSync(src, dest)
       return dest
     } catch (err) {
@@ -244,7 +244,7 @@ export class TrayService {
         electron: process.versions.electron
       })
 
-      // 关键用 NativeImage + 强制 16px（Win 托盘常用尺寸）
+      // 使用 32px 托盘图（Windows / 高分屏会自行适配），比强制 16px 更醒目
       let image: Electron.NativeImage
       if (iconPath && fs.existsSync(iconPath)) {
         image = nativeImage.createFromPath(iconPath)
@@ -255,12 +255,11 @@ export class TrayService {
       } else {
         image = nativeImage.createFromBuffer(buildSolidPng32())
       }
-      // 已是 16px 则不再二次缩放，保留折角与线条细节
       const size = image.getSize()
       const trayImage =
-        size.width === 16 && size.height === 16
+        size.width === 32 && size.height === 32
           ? image
-          : image.resize({ width: 16, height: 16, quality: 'best' })
+          : image.resize({ width: 32, height: 32, quality: 'best' })
 
       // 不用 GUID：开发态共用未签名 electron.exe，GUID 极易导致「对象有了但系统托盘不注册」
       const tray = new Tray(trayImage)

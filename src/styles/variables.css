@@ -20,8 +20,13 @@
   --code-bg: #f0f4fa;
   --blockquote-border: #c5d4e8;
   --shadow-soft: 0 1px 2px rgba(40, 80, 140, 0.05);
-  --font-ui: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-ui: "Microsoft YaHei", "微软雅黑", "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  /* 正文：默认微软雅黑 */
+  --font-content: "Microsoft YaHei", "微软雅黑", "Microsoft YaHei UI", "Segoe UI", sans-serif;
   --font-mono: Consolas, "Courier New", monospace;
+  --content-font-size: 16px;
+  --content-line-height: 1.8;
+  --content-font-weight: 400;
   --titlebar-height: 48px;
   --shell-titlebar-height: 40px;
   --pane-header-height: 36px;

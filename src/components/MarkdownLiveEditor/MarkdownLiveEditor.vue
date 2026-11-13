@@ -421,14 +421,35 @@ defineExpose({
 :deep(.vditor-reset) {
   background: var(--editor-bg) !important;
   color: var(--text-primary) !important;
-  font-size: 15px;
-  line-height: 1.75;
-  font-family: var(--font-ui);
+  font-family: var(--font-content) !important;
+  font-size: var(--content-font-size, 16px) !important;
+  font-weight: var(--content-font-weight, 500);
+  line-height: var(--content-line-height, 1.85) !important;
+  letter-spacing: 0.02em;
   max-width: none;
   width: 100%;
   box-sizing: border-box;
   margin: 0;
   padding: 8px 20px 56px !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:deep(.vditor-ir h1),
+:deep(.vditor-ir h2),
+:deep(.vditor-ir h3),
+:deep(.vditor-ir h4),
+:deep(.vditor-ir h5),
+:deep(.vditor-ir h6),
+:deep(.vditor-reset h1),
+:deep(.vditor-reset h2),
+:deep(.vditor-reset h3),
+:deep(.vditor-reset h4),
+:deep(.vditor-reset h5),
+:deep(.vditor-reset h6) {
+  font-family: var(--font-content) !important;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 :deep(.vditor-ir__node--expand .vditor-ir__marker),

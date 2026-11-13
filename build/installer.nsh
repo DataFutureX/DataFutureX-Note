@@ -1,17 +1,19 @@
-; 自定义 NSIS：安装后用 Logo 图标创建桌面 / 开始菜单快捷方式，便于搜索「数字未来笔记」与 DataFutureX Note
+; 桌面 / 开始菜单快捷方式显式引用 Logo
 !macro customInstall
-  StrCpy $0 "$INSTDIR\resources\icon.ico"
-  IfFileExists "$0" +2 0
-    StrCpy $0 "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+  ; 优先安装根目录 icon.ico（extraFiles），其次 resources\icon.ico（extraResources）
+  StrCpy $0 "$INSTDIR\icon.ico"
+  IfFileExists "$0" logo_ok 0
+    StrCpy $0 "$INSTDIR\resources\icon.ico"
+    IfFileExists "$0" logo_ok 0
+      StrCpy $0 "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+  logo_ok:
 
-  ; 桌面
+  ; 桌面：名称「数字未来笔记」+ Logo 图标
   CreateShortCut "$DESKTOP\数字未来笔记.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$0" 0 SW_SHOWNORMAL "" "DataFutureX Note 数字未来笔记"
 
-  ; 开始菜单（根级，方便 Win 搜索直接命中）
+  ; 开始菜单
   CreateShortCut "$SMPROGRAMS\数字未来笔记.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$0" 0 SW_SHOWNORMAL "" "DataFutureX Note 数字未来笔记"
   CreateShortCut "$SMPROGRAMS\DataFutureX Note.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$0" 0 SW_SHOWNORMAL "" "DataFutureX Note"
-
-  ; 开始菜单文件夹（程序列表里也能找到）
   CreateDirectory "$SMPROGRAMS\DataFutureX"
   CreateShortCut "$SMPROGRAMS\DataFutureX\数字未来笔记.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$0" 0 SW_SHOWNORMAL "" "DataFutureX Note 数字未来笔记"
   CreateShortCut "$SMPROGRAMS\DataFutureX\DataFutureX Note.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$0" 0 SW_SHOWNORMAL "" "DataFutureX Note"

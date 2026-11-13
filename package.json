@@ -63,6 +63,7 @@
       "output": "release",
       "buildResources": "build"
     },
+    "afterPack": "scripts/after-pack.mjs",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -83,6 +84,12 @@
       {
         "from": "resources/tray-32.png",
         "to": "tray-32.png"
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "resources/icon.ico",
+        "to": "icon.ico"
       }
     ],
     "win": {
@@ -107,9 +114,9 @@
       "uninstallDisplayName": "DataFutureX Note（数字未来笔记）",
       "deleteAppDataOnUninstall": false,
       "include": "installer.nsh",
-      "installerIcon": "resources/icon.ico",
-      "uninstallerIcon": "resources/icon.ico",
-      "installerHeaderIcon": "resources/icon.ico"
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico"
     }
   },
   "allowScripts": {

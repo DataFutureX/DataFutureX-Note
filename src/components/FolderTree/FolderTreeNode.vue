@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 import type { FolderNode, Note } from '@/types'
+import { formatAbsoluteMtime, formatRelativeMtime } from '@/utils/relativeTime'
 
 const DND_NOTE = 'application/x-dfx-note'
 const DND_FOLDER = 'application/x-dfx-folder'
@@ -239,6 +240,11 @@ function onFolderDrop(e: DragEvent) {
         <span v-else class="label" :title="`${note.path}（拖动可移动 · 双击重命名）`">{{
           note.name
         }}</span>
+        <span
+          v-if="!isRenamingNote(note) && note.mtime"
+          class="mtime"
+          :title="formatAbsoluteMtime(note.mtime)"
+        >{{ formatRelativeMtime(note.mtime) }}</span>
       </div>
 
       <FolderTreeNode
@@ -354,6 +360,19 @@ function onFolderDrop(e: DragEvent) {
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+
+.mtime {
+  flex-shrink: 0;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.tree-row.note.active .mtime {
+  color: color-mix(in srgb, var(--accent-color) 70%, var(--text-muted));
 }
 
 .rename-input {
