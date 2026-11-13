@@ -25,9 +25,12 @@ import { ensureDir, isWritableDir } from './utils/pathSafety'
 import { installAssetProtocol, registerAssetScheme } from './utils/assetProtocol'
 import {
   extractMarkdownPath,
+  isMarkdownInLibrary,
+  isViewerMode,
   prepareOpenMarkdown,
   type OpenMarkdownRequest
 } from './utils/openMarkdown'
+import { isolateViewerUserData, spawnMarkdownViewer } from './utils/openMarkdownViewer'
 
 // 必须在 app ready 前注册，否则自定义协议无法加载本地图片
 registerAssetScheme()
@@ -39,6 +42,11 @@ import {
 
 // 必须在读取 userData / 构造 SettingsService 之前完成
 const writableUserData = bootstrapWritableUserData()
+/** 库外 MD 独立查看进程：隔离 userData，避免改写主笔记库配置 */
+const viewerMode = isViewerMode()
+if (viewerMode) {
+  isolateViewerUserData(writableUserData)
+}
 try {
   app.setAppUserModelId('com.datafuturex.note')
 } catch {
@@ -129,7 +137,7 @@ function createWindow(): void {
     y: useBounds ? bounds!.y : undefined,
     minWidth: 1000,
     minHeight: 650,
-    title: 'DataFutureX Note',
+    title: viewerMode ? 'DataFutureX Note — 查看' : 'DataFutureX Note',
     show: false,
     icon,
     backgroundColor: chrome.color,
@@ -157,18 +165,19 @@ function createWindow(): void {
   }
   mainWindow.once('ready-to-show', () => {
     reveal()
-    // 窗口就绪后再建托盘，并允许重试
-    trayService.ensure(() => mainWindow, 3)
+    // 主实例：窗口就绪后再建托盘；查看进程不挂托盘
+    if (!viewerMode) trayService.ensure(() => mainWindow, 3)
   })
   // 兜底：加载异常时也尽量把窗口拉起来
   setTimeout(reveal, 2500)
-  setTimeout(() => trayService.ensure(() => mainWindow, 2), 1500)
+  if (!viewerMode) setTimeout(() => trayService.ensure(() => mainWindow, 2), 1500)
 
-  // 关闭按钮：若托盘已就绪则值守隐藏，否则正常退出
+  // 关闭按钮：主实例有托盘则值守隐藏；查看进程直接关闭
   mainWindow.on('close', (event) => {
     if (!mainWindow) return
     const b = mainWindow.getBounds()
     void settings.update({ windowBounds: b })
+    if (viewerMode) return
     if (!trayService.isQuitting() && trayService.hasTray()) {
       event.preventDefault()
       trayService.hideToTray(mainWindow)
@@ -201,19 +210,22 @@ function watchLibrary(): void {
   ipcMain.on('restart-library-watch', () => restartLibraryWatch())
 }
 
-const gotLock = app.requestSingleInstanceLock()
-if (!gotLock) {
+/** 主实例单开；查看进程可多开且不抢锁 */
+const gotLock = viewerMode ? true : app.requestSingleInstanceLock()
+if (!viewerMode && !gotLock) {
   app.quit()
-} else {
+} else if (!viewerMode) {
   app.on('second-instance', (_event, commandLine) => {
     void (async () => {
       const md = extractMarkdownPath(commandLine)
       if (md) {
-        const req = await queueOpenMarkdown(md)
-        if (req && mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
-          sendOpenMarkdown(req)
-          pendingOpenMarkdown = null
+        if (isMarkdownInLibrary(md, settings.getRootDirectory())) {
+          await openMarkdownPath(md, { focusMain: true })
+          return
         }
+        // 库外 MD：另开查看进程，不改动主笔记库、不强拉主窗口
+        spawnMarkdownViewer(md)
+        return
       }
       if (!mainWindow || mainWindow.isDestroyed()) createWindow()
       else trayService.showWindow(mainWindow)
@@ -221,16 +233,33 @@ if (!gotLock) {
   })
 }
 
+/** macOS 可能在 ready 前收到 open-file，先暂存，待设置加载后再分流 */
+let pendingOsOpenFile: string | null = null
+
+async function openMarkdownPath(filePath: string, opts?: { focusMain?: boolean }): Promise<void> {
+  if (!viewerMode && !isMarkdownInLibrary(filePath, settings.getRootDirectory())) {
+    spawnMarkdownViewer(filePath)
+    return
+  }
+  const req = await queueOpenMarkdown(filePath)
+  if (req && mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+    sendOpenMarkdown(req)
+    pendingOpenMarkdown = null
+  }
+  if (opts?.focusMain) {
+    if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+    else if (!viewerMode) trayService.showWindow(mainWindow)
+  }
+}
+
 // macOS：Finder 打开文件
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
-  void (async () => {
-    const req = await queueOpenMarkdown(filePath)
-    if (req && mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
-      sendOpenMarkdown(req)
-      pendingOpenMarkdown = null
-    }
-  })()
+  if (!app.isReady()) {
+    pendingOsOpenFile = filePath
+    return
+  }
+  void openMarkdownPath(filePath, { focusMain: isMarkdownInLibrary(filePath, settings.getRootDirectory()) })
 })
 
 app.whenReady().then(async () => {
@@ -238,27 +267,35 @@ app.whenReady().then(async () => {
   installAssetProtocol(() => settings.getRootDirectory())
   await settings.load()
 
-  // 启动参数中的 Markdown：设置库根并默认隐藏目录
-  const launchMd = extractMarkdownPath(process.argv)
+  // 启动参数 / macOS open-file 中的 Markdown
+  const launchMd = pendingOsOpenFile || extractMarkdownPath(process.argv)
+  pendingOsOpenFile = null
   if (launchMd) {
-    await queueOpenMarkdown(launchMd)
+    if (viewerMode || isMarkdownInLibrary(launchMd, settings.getRootDirectory())) {
+      await queueOpenMarkdown(launchMd)
+    } else {
+      // 库外文件另开查看进程，主窗口仍进原笔记库
+      spawnMarkdownViewer(launchMd)
+    }
   }
 
-  // 若已配置根目录但对当前 Electron 进程不可写，自动切到可写的推荐库，避免「什么都做不了」
-  const configuredRoot = settings.getRootDirectory()
-  if (configuredRoot) {
-    const writable = await isWritableDir(configuredRoot)
-    if (!writable) {
-      const fallback = defaultLibraryDir(writableUserData)
-      await ensureDir(fallback)
-      if (canWriteSync(fallback)) {
-        console.warn(
-          `[DataFutureX-Note] 原笔记库不可写，已切换到推荐目录：${fallback}\n原路径：${configuredRoot}`
-        )
-        await settings.setRootDirectory(fallback)
-      } else {
-        console.warn(`[DataFutureX-Note] 笔记库不可写：${configuredRoot}`)
-        await settings.update({ rootDirectory: null })
+  // 主实例：若已配置根目录但对当前 Electron 进程不可写，自动切到可写的推荐库
+  if (!viewerMode) {
+    const configuredRoot = settings.getRootDirectory()
+    if (configuredRoot) {
+      const writable = await isWritableDir(configuredRoot)
+      if (!writable) {
+        const fallback = defaultLibraryDir(writableUserData)
+        await ensureDir(fallback)
+        if (canWriteSync(fallback)) {
+          console.warn(
+            `[DataFutureX-Note] 原笔记库不可写，已切换到推荐目录：${fallback}\n原路径：${configuredRoot}`
+          )
+          await settings.setRootDirectory(fallback)
+        } else {
+          console.warn(`[DataFutureX-Note] 笔记库不可写：${configuredRoot}`)
+          await settings.update({ rootDirectory: null })
+        }
       }
     }
   }
@@ -337,7 +374,7 @@ app.whenReady().then(async () => {
     if (!win) return
     const b = win.getBounds()
     void settings.update({ windowBounds: b })
-    if (trayService.hasTray()) {
+    if (!viewerMode && trayService.hasTray()) {
       trayService.hideToTray(win)
     } else {
       trayService.markQuit()
@@ -355,21 +392,31 @@ app.whenReady().then(async () => {
   watchLibrary()
 
   // 再兜底一次：部分环境 ready-to-show 不可靠
-  setTimeout(() => {
-    try {
-      trayService.ensure(() => mainWindow, 3)
-    } catch (err) {
-      console.warn('[DataFutureX-Note] tray init failed:', err)
-    }
-  }, 1200)
+  if (!viewerMode) {
+    setTimeout(() => {
+      try {
+        trayService.ensure(() => mainWindow, 3)
+      } catch (err) {
+        console.warn('[DataFutureX-Note] tray init failed:', err)
+      }
+    }, 1200)
+  }
 
   app.on('activate', () => {
     if (!mainWindow || mainWindow.isDestroyed()) createWindow()
-    else trayService.showWindow(mainWindow)
+    else if (!viewerMode) trayService.showWindow(mainWindow)
+    else {
+      mainWindow.show()
+      mainWindow.focus()
+    }
   })
 })
 
 app.on('window-all-closed', () => {
+  if (viewerMode) {
+    app.quit()
+    return
+  }
   // 有托盘值守时不退出；无托盘则按常规退出
   if (process.platform !== 'darwin' && !trayService.hasTray()) {
     app.quit()

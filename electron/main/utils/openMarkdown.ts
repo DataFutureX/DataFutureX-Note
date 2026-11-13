@@ -3,6 +3,9 @@ import path from 'node:path'
 import type { SettingsService } from '../services/SettingsService'
 import { toRelativeId } from './pathSafety'
 
+/** 库外 Markdown 独立查看进程启动参数 */
+export const VIEWER_FLAG = '--dfx-viewer'
+
 export interface OpenMarkdownRequest {
   filePath: string
   rootDirectory: string
@@ -16,6 +19,24 @@ function isPathInside(child: string, parent: string): boolean {
   const p = path.resolve(parent)
   const pSep = p.endsWith(path.sep) ? p : p + path.sep
   return c === p || c.startsWith(pSep)
+}
+
+/** 是否为库外 MD 独立查看进程 */
+export function isViewerMode(argv: string[] = process.argv): boolean {
+  return argv.includes(VIEWER_FLAG)
+}
+
+/** 文件是否位于当前笔记库内 */
+export function isMarkdownInLibrary(
+  absFilePath: string,
+  rootDirectory: string | null | undefined
+): boolean {
+  if (!rootDirectory) return false
+  try {
+    return isPathInside(absFilePath, rootDirectory)
+  } catch {
+    return false
+  }
 }
 
 /** 从命令行参数中提取要打开的 Markdown 绝对路径 */
@@ -46,9 +67,9 @@ function folderIdFromNoteId(noteId: string): string {
 }
 
 /**
- * 准备用本程序打开外部 MD：
+ * 准备打开 Markdown：
  * - 若文件已在当前笔记库内，保留库根，直接打开相对路径
- * - 否则以文件所在目录为临时笔记库根
+ * - 否则以文件所在目录为会话根（仅应在独立 viewer 进程中调用；主实例对库外文件应 spawnMarkdownViewer）
  * - 默认隐藏目录栏
  */
 export async function prepareOpenMarkdown(
@@ -94,4 +115,23 @@ export async function prepareOpenMarkdown(
     folderId,
     hideFolder: true
   }
+}
+
+/** 构造启动独立查看进程的 argv（不含 execPath） */
+export function buildViewerLaunchArgs(
+  mdPath: string,
+  options?: { isPackaged?: boolean; argv?: string[] }
+): string[] {
+  const abs = path.resolve(mdPath)
+  const args: string[] = []
+  const isPackaged = options?.isPackaged === true
+  const argv = options?.argv ?? process.argv
+  if (!isPackaged) {
+    const entry = argv[1]
+    if (entry && !/\.(md|markdown)$/i.test(entry)) {
+      args.push(entry)
+    }
+  }
+  args.push(VIEWER_FLAG, abs)
+  return args
 }
