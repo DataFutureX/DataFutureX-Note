@@ -10,6 +10,8 @@ import TitleBar from '@/components/TitleBar/TitleBar.vue'
 import type { MenuAction } from '@/components/AppMenuBar/AppMenuBar.vue'
 import { emitMenuAction } from '@/utils/menuBus'
 import LogoMark from '@/components/Brand/LogoMark.vue'
+import type { OpenMarkdownRequest } from '@/types'
+import { DEFAULT_SETTINGS } from '@/types'
 
 const settingsStore = useSettingsStore()
 const libraryStore = useLibraryStore()
@@ -17,6 +19,7 @@ const ready = ref(false)
 const hasRoot = ref(false)
 const showSettings = ref(false)
 let unwatch: (() => void) | null = null
+let unwatchOpenMd: (() => void) | null = null
 
 const currentView = computed(() => {
   if (!ready.value) return 'loading'
@@ -32,36 +35,87 @@ watch(
   }
 )
 
+async function bindLibraryWatch() {
+  unwatch?.()
+  unwatch = window.noteAPI.watchLibrary(() => {
+    void libraryStore.refreshTree(true)
+  })
+}
+
+/** 用本程序打开外部 MD：刷新库、打开笔记，并默认隐藏目录 */
+async function applyOpenMarkdown(req: OpenMarkdownRequest) {
+  showSettings.value = false
+  const loaded = await window.noteAPI.getSettings()
+  settingsStore.settings = {
+    ...loaded,
+    accentTheme: loaded.accentTheme || DEFAULT_SETTINGS.accentTheme,
+    panelLayout: {
+      ...DEFAULT_SETTINGS.panelLayout,
+      ...(loaded.panelLayout || {}),
+      folderCollapsed: true
+    }
+  }
+  settingsStore.applyDomTheme(settingsStore.resolvedTheme)
+  hasRoot.value = true
+  await libraryStore.refreshTree(false)
+  try {
+    if (req.folderId) await libraryStore.loadNotes(req.folderId)
+  } catch {
+    // ignore
+  }
+  try {
+    await libraryStore.selectNote(req.noteId, true)
+  } catch (e) {
+    console.warn('[open-markdown] selectNote failed:', e)
+  }
+  await settingsStore.update({
+    panelLayout: {
+      ...settingsStore.settings.panelLayout,
+      folderCollapsed: true
+    }
+  })
+  await bindLibraryWatch()
+}
+
 onMounted(async () => {
   await settingsStore.init()
-  hasRoot.value = await libraryStore.ensureRoot()
-  if (hasRoot.value) {
-    await libraryStore.refreshTree()
-    const lastFolder = settingsStore.settings.lastFolderId
-    const lastNote = settingsStore.settings.lastNoteId
-    if (lastFolder) {
-      try {
-        await libraryStore.loadNotes(lastFolder)
-      } catch {
-        // ignore
+
+  const pending = await window.noteAPI.consumeOpenMarkdownRequest()
+  if (pending) {
+    await applyOpenMarkdown(pending)
+  } else {
+    hasRoot.value = await libraryStore.ensureRoot()
+    if (hasRoot.value) {
+      await libraryStore.refreshTree()
+      const lastFolder = settingsStore.settings.lastFolderId
+      const lastNote = settingsStore.settings.lastNoteId
+      if (lastFolder) {
+        try {
+          await libraryStore.loadNotes(lastFolder)
+        } catch {
+          // ignore
+        }
       }
-    }
-    if (settingsStore.settings.startupBehavior === 'last-note' && lastNote) {
-      try {
-        await libraryStore.selectNote(lastNote, true)
-      } catch {
-        // ignore
+      if (settingsStore.settings.startupBehavior === 'last-note' && lastNote) {
+        try {
+          await libraryStore.selectNote(lastNote, true)
+        } catch {
+          // ignore
+        }
       }
+      await bindLibraryWatch()
     }
-    unwatch = window.noteAPI.watchLibrary(() => {
-      void libraryStore.refreshTree(true)
-    })
   }
+
+  unwatchOpenMd = window.noteAPI.onOpenMarkdownFile((req) => {
+    void applyOpenMarkdown(req)
+  })
   ready.value = true
 })
 
 onUnmounted(() => {
   unwatch?.()
+  unwatchOpenMd?.()
 })
 
 async function onRootReady() {

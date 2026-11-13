@@ -4,6 +4,7 @@ import type {
   ConflictStrategy,
   ExportOptions,
   NoteAPI,
+  OpenMarkdownRequest,
   ResolvedTheme,
   SortMode
 } from '../../src/types'
@@ -57,6 +58,12 @@ const noteAPI: NoteAPI = {
     const handler = (_: Electron.IpcRendererEvent, theme: ResolvedTheme) => callback(theme)
     ipcRenderer.on('system-theme-changed', handler)
     return () => ipcRenderer.removeListener('system-theme-changed', handler)
+  },
+  consumeOpenMarkdownRequest: () => ipcRenderer.invoke('consumeOpenMarkdownRequest'),
+  onOpenMarkdownFile: (callback: (req: OpenMarkdownRequest) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, req: OpenMarkdownRequest) => callback(req)
+    ipcRenderer.on('open-markdown-file', handler)
+    return () => ipcRenderer.removeListener('open-markdown-file', handler)
   },
 
   saveRecoveryDraft: (noteId, content) => ipcRenderer.invoke('saveRecoveryDraft', noteId, content),

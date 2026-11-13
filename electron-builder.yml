@@ -24,6 +24,18 @@ extraResources:
 extraFiles:
   - from: resources/icon.ico
     to: icon.ico
+fileAssociations:
+  - ext: md
+    name: Markdown
+    description: Markdown Document
+    mimeType: text/markdown
+    role: Editor
+  - ext: markdown
+    name: Markdown
+    description: Markdown Document
+    mimeType: text/markdown
+    role: Editor
+
 win:
   target:
     - target: nsis
@@ -34,6 +46,17 @@ win:
   artifactName: ${productName}-${version}-Setup.${ext}
   # 关闭自动 rcedit/签名，改由 afterPack 单独写入 Logo，避免 winCodeSign 缓存问题
   signAndEditExecutable: false
+  fileAssociations:
+    - ext: md
+      name: Markdown
+      description: Markdown Document
+      mimeType: text/markdown
+      role: Editor
+    - ext: markdown
+      name: Markdown
+      description: Markdown Document
+      mimeType: text/markdown
+      role: Editor
 
 nsis:
   oneClick: false

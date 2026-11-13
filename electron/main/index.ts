@@ -23,6 +23,11 @@ import {
 } from './utils/appPaths'
 import { ensureDir, isWritableDir } from './utils/pathSafety'
 import { installAssetProtocol, registerAssetScheme } from './utils/assetProtocol'
+import {
+  extractMarkdownPath,
+  prepareOpenMarkdown,
+  type OpenMarkdownRequest
+} from './utils/openMarkdown'
 
 // 必须在 app ready 前注册，否则自定义协议无法加载本地图片
 registerAssetScheme()
@@ -46,7 +51,31 @@ process.env.VITE_PUBLIC = app.isPackaged
   : path.join(process.env.DIST, '../public')
 
 let mainWindow: BrowserWindow | null = null
+/** 待打开的外部 Markdown（启动参数 / 二次实例 / open-file） */
+let pendingOpenMarkdown: OpenMarkdownRequest | null = null
 const settings = new SettingsService()
+
+function takePendingOpenMarkdown(): OpenMarkdownRequest | null {
+  const req = pendingOpenMarkdown
+  pendingOpenMarkdown = null
+  return req
+}
+
+async function queueOpenMarkdown(filePath: string): Promise<OpenMarkdownRequest | null> {
+  try {
+    const req = await prepareOpenMarkdown(filePath, settings)
+    pendingOpenMarkdown = req
+    return req
+  } catch (err) {
+    console.warn('[DataFutureX-Note] open markdown failed:', err)
+    return null
+  }
+}
+
+function sendOpenMarkdown(req: OpenMarkdownRequest): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send('open-markdown-file', req)
+}
 const fsService = new FileSystemService(() => settings.getRootDirectory())
 const trashService = new TrashService(fsService)
 const folderService = new FolderService(fsService, trashService)
@@ -176,16 +205,44 @@ const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) createWindow()
-    else trayService.showWindow(mainWindow)
+  app.on('second-instance', (_event, commandLine) => {
+    void (async () => {
+      const md = extractMarkdownPath(commandLine)
+      if (md) {
+        const req = await queueOpenMarkdown(md)
+        if (req && mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+          sendOpenMarkdown(req)
+          pendingOpenMarkdown = null
+        }
+      }
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow()
+      else trayService.showWindow(mainWindow)
+    })()
   })
 }
+
+// macOS：Finder 打开文件
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  void (async () => {
+    const req = await queueOpenMarkdown(filePath)
+    if (req && mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+      sendOpenMarkdown(req)
+      pendingOpenMarkdown = null
+    }
+  })()
+})
 
 app.whenReady().then(async () => {
   if (!gotLock) return
   installAssetProtocol(() => settings.getRootDirectory())
   await settings.load()
+
+  // 启动参数中的 Markdown：设置库根并默认隐藏目录
+  const launchMd = extractMarkdownPath(process.argv)
+  if (launchMd) {
+    await queueOpenMarkdown(launchMd)
+  }
 
   // 若已配置根目录但对当前 Electron 进程不可写，自动切到可写的推荐库，避免「什么都做不了」
   const configuredRoot = settings.getRootDirectory()
@@ -291,6 +348,8 @@ app.whenReady().then(async () => {
     trayService.markQuit()
     app.quit()
   })
+
+  ipcMain.handle('consumeOpenMarkdownRequest', async () => takePendingOpenMarkdown())
 
   createWindow()
   watchLibrary()

@@ -222,6 +222,15 @@ export interface SelfCheckReport {
   steps: { name: string; ok: boolean; detail?: string }[]
 }
 
+/** 用本程序打开外部 Markdown 时的请求 */
+export interface OpenMarkdownRequest {
+  filePath: string
+  rootDirectory: string
+  noteId: string
+  folderId: string
+  hideFolder: true
+}
+
 export interface NoteAPI {
   selectRootDirectory(): Promise<string | null>
   useDefaultLibrary(): Promise<string>
@@ -268,6 +277,11 @@ export interface NoteAPI {
   updateSettings(settings: Partial<AppSettings>): Promise<AppSettings>
   getSystemTheme(): Promise<ResolvedTheme>
   onSystemThemeChanged(callback: (theme: ResolvedTheme) => void): () => void
+
+  /** 消费启动/关联打开时的 Markdown 请求（只取一次） */
+  consumeOpenMarkdownRequest(): Promise<OpenMarkdownRequest | null>
+  /** 运行中再次用本程序打开 .md 时推送 */
+  onOpenMarkdownFile(callback: (req: OpenMarkdownRequest) => void): () => void
 
   saveRecoveryDraft(noteId: string, content: string): Promise<void>
   loadRecoveryDraft(noteId: string): Promise<string | null>
