@@ -14,6 +14,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default async function afterPack(context) {
   if (context.electronPlatformName !== 'win32') return
 
+  // 跳过 NSIS 卸载器临时包，避免改坏安装包结构
+  const outDir = context.appOutDir || ''
+  if (outDir.includes('__uninstaller-nsis') || outDir.includes('.eked')) {
+    console.log('[afterPack] skip uninstaller staging dir')
+    return
+  }
+
   const projectDir = context.packager?.projectDir || path.join(__dirname, '..')
   const iconPath = [
     path.join(projectDir, 'resources', 'icon.ico'),

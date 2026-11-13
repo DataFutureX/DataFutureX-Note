@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
 const cacheDir = path.join(root, '.electron-builder-cache')
+// makensis（32 位）在本机写 C: 系统 Temp 会失败（!tempfile），改用仓库所在盘临时目录
 const tempDir = path.join(root, '.tmp', 'nsis-temp')
 fs.mkdirSync(cacheDir, { recursive: true })
 fs.mkdirSync(tempDir, { recursive: true })
@@ -19,7 +20,7 @@ const args = process.argv.slice(2)
 const env = {
   ...process.env,
   ELECTRON_BUILDER_CACHE: cacheDir,
-  // makensis 的 !tempfile 依赖 TMP/TEMP；沙箱下系统 Temp 常不可写
+  // makensis 的 !tempfile 依赖 TMP/TEMP
   TEMP: tempDir,
   TMP: tempDir,
   TMPDIR: tempDir
@@ -45,22 +46,18 @@ function run(cmd, cmdArgs) {
 
 async function main() {
   const mode = args[0] || 'full'
-  const builderArgs =
-    mode === 'dir'
-      ? ['electron-builder', '--win', '--x64', '--dir']
-      : mode === 'pack'
-        ? ['electron-builder', '--win', '--x64']
-        : null
-
   if (mode === 'full' || mode === 'dir') {
     await run('npx', ['vue-tsc', '--noEmit'])
     await run('npx', ['vite', 'build'])
   }
 
   if (mode === 'full' || mode === 'pack' || mode === 'dir') {
-    const ebArgs =
-      builderArgs || ['electron-builder', '--win', '--x64', ...args.slice(1)]
-    await run('npx', ebArgs)
+    // 统一打 dir；Setup 由自研安装器包装，避免 NSIS 临时目录/写入失败
+    await run('npx', ['electron-builder', '--win', '--x64', '--dir'])
+  }
+
+  if (mode === 'full' || mode === 'pack') {
+    await run('node', ['scripts/wrap-installer.mjs'])
   }
 }
 

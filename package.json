@@ -1,6 +1,6 @@
 {
   "name": "datafuturex-note",
-  "version": "1.0.0",
+  "version": "v1.0.0",
   "description": "DataFutureX Note - 本地优先的桌面 Markdown 笔记软件",
   "main": "dist-electron/main/index.js",
   "author": "DataFutureX",
@@ -111,29 +111,16 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "dir",
           "arch": [
             "x64"
           ]
         }
       ],
       "icon": "resources/icon.ico",
-      "artifactName": "${productName}-${version}-Setup.${ext}",
       "signAndEditExecutable": false
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": false,
-      "createStartMenuShortcut": false,
-      "shortcutName": "数字未来笔记",
-      "uninstallDisplayName": "DataFutureX Note（数字未来笔记）",
-      "deleteAppDataOnUninstall": false,
-      "include": "installer.nsh",
-      "installerIcon": "icon.ico",
-      "uninstallerIcon": "icon.ico",
-      "installerHeaderIcon": "icon.ico"
-    }
+    "compression": "normal"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,
