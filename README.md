@@ -27,7 +27,7 @@
 ## 快速开始（用户）
 
 1. 运行 `release/DataFutureX-Note-*-Setup.exe` 一键安装（请先拷到本地磁盘再运行；默认装到 `%LOCALAPPDATA%\Programs\DataFutureX-Note`）
-2. 安装后可在开始菜单搜索「数字未来笔记」或「DataFutureX Note」启动（桌面亦有 Logo 快捷方式）
+2. 安装后桌面快捷方式名为「DataFutureX Note」；也可在开始菜单搜索「数字未来笔记」或「DataFutureX Note」启动
 3. 首次启动选择笔记库根目录（已有目录或空目录均可，不会清空内容）
 4. 在目录中新建文件夹与笔记，开始书写
 
