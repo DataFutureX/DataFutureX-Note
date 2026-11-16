@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useLibraryStore } from '@/stores/library'
 import { buildChapterTree, extractChapters } from '@/utils/markdownOutline'
 import ChapterTreeNode from './ChapterTreeNode.vue'
@@ -7,15 +7,34 @@ import ChapterTreeNode from './ChapterTreeNode.vue'
 const library = useLibraryStore()
 /** id -> true 表示折叠 */
 const collapsed = ref<Record<string, boolean>>({})
+/** 防抖后的正文快照，避免打开大文时大纲抢主线程 */
+const contentSnap = ref(library.content)
+let outlineTimer: ReturnType<typeof setTimeout> | null = null
 
-const tree = computed(() => buildChapterTree(extractChapters(library.content)))
+const tree = computed(() => buildChapterTree(extractChapters(contentSnap.value)))
+
+watch(
+  () => library.content,
+  (next) => {
+    if (outlineTimer) clearTimeout(outlineTimer)
+    outlineTimer = setTimeout(() => {
+      outlineTimer = null
+      contentSnap.value = next
+    }, 180)
+  }
+)
 
 watch(
   () => library.selectedNoteId,
   () => {
     collapsed.value = {}
+    contentSnap.value = library.content
   }
 )
+
+onBeforeUnmount(() => {
+  if (outlineTimer) clearTimeout(outlineTimer)
+})
 
 function toggle(id: string) {
   collapsed.value = { ...collapsed.value, [id]: !collapsed.value[id] }

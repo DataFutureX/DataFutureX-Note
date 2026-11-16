@@ -69,7 +69,7 @@ async function runSelfCheck() {
 <template>
   <div class="welcome">
     <div class="welcome-card">
-      <LogoMark class="logo" :size="56" />
+      <LogoMark class="logo" :size="72" enhanced />
       <h1>DataFutureX Note</h1>
       <p class="desc">
         本地优先的 Markdown 笔记软件。笔记保存在您指定的 PC 目录中，使用标准文件夹与 `.md` 文件，可随时用其他编辑器打开。
@@ -115,14 +115,13 @@ async function runSelfCheck() {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: visible;
 }
 
 .logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  margin-bottom: 6px;
-  display: block;
+  align-self: flex-start;
+  margin: 0 0 8px;
+  overflow: visible;
 }
 
 h1 {

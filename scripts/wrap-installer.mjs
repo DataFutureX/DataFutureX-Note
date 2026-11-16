@@ -1,6 +1,6 @@
 /**
  * 用自研安装器包装 win-unpacked：
- * stub.exe + marker + app.zip → DataFutureX-Note-{version}-Setup.exe
+ * stub.exe + marker + app.zip → DataFutureX-Note-v{version}-{YYYYMMDD-HHmmss}-Setup.exe
  * 彻底摆脱 NSIS 临时目录 / 写入失败问题。
  */
 import { spawnSync } from 'node:child_process'
@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { zipSync } from './zip-dir.mjs'
+import { createBuildInfo, displayVersion, writeBuildInfo } from './build-info.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -25,15 +26,17 @@ function findCsc() {
   throw new Error('csc.exe not found')
 }
 
-function readVersion() {
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
-  return String(pkg.version || '1.0.0').replace(/^v/i, '')
-}
-
 function compileStub(outExe) {
   const csc = findCsc()
   const cs = path.join(root, 'scripts', 'dfx-installer-stub.cs')
   const icon = path.join(root, 'resources', 'icon.ico')
+  // 优先用较大 PNG 作为安装向导 Logo；否则回退 icon.png
+  const logoCandidates = [
+    path.join(root, 'resources', 'icon-256.png'),
+    path.join(root, 'resources', 'icon.png'),
+    path.join(root, 'resources', 'icon-48.png')
+  ]
+  const logoPng = logoCandidates.find((p) => fs.existsSync(p))
   const args = [
     '/nologo',
     '/optimize+',
@@ -46,6 +49,7 @@ function compileStub(outExe) {
     `/out:${outExe}`,
   ]
   if (fs.existsSync(icon)) args.push(`/win32icon:${icon}`)
+  if (logoPng) args.push(`/resource:${logoPng},DfxInstaller.Logo.png`)
   args.push(cs)
   const r = spawnSync(csc, args, { cwd: root, encoding: 'utf8' })
   if (r.status !== 0) {
@@ -62,13 +66,26 @@ function main() {
     throw new Error(`missing ${unpackedDir}, build --dir first`)
   }
 
-  const version = readVersion()
-  const setupName = `DataFutureX-Note-${version}-Setup.exe`
+  // 以打包完成时刻为准写入版本与时间戳
+  const info = createBuildInfo()
+  const resourcesDir = path.join(unpackedDir, 'resources')
+  fs.mkdirSync(resourcesDir, { recursive: true })
+  writeBuildInfo(
+    [
+      path.join(root, 'resources', 'build-info.json'),
+      path.join(unpackedDir, 'build-info.json'),
+      path.join(resourcesDir, 'build-info.json')
+    ],
+    info
+  )
+
+  const setupName = `DataFutureX-Note-${displayVersion(info.version)}-${info.buildTag}-Setup.exe`
   const setupPath = path.join(releaseDir, setupName)
   const stubPath = path.join(releaseDir, `_dfx-installer-stub-${process.pid}.exe`)
   const zipPath = path.join(releaseDir, `_dfx-app-${process.pid}.zip`)
 
   console.log('[wrap-installer] zipping win-unpacked ...')
+  console.log('[wrap-installer] build', info.displayVersion, info.buildTime)
   zipSync(unpackedDir, zipPath)
 
   try {
@@ -90,17 +107,25 @@ function main() {
       `(stub ${stub.length} + zip ${zip.length})`
     )
 
-    // 清理旧 NSIS / portable / blockmap 残留
+    // 清理旧 NSIS / portable / blockmap，以及无时间戳的旧 Setup 名
     for (const name of fs.readdirSync(releaseDir)) {
-      if (/^DataFutureX-Note-.*-Setup\.exe\.blockmap$/i.test(name) ||
-          /^DataFutureX-Note-.*-Portable\.exe$/i.test(name) ||
-          name === '安装.cmd') {
-        try { fs.unlinkSync(path.join(releaseDir, name)) } catch {}
+      if (
+        /^DataFutureX-Note-.*-Setup\.exe\.blockmap$/i.test(name) ||
+        /^DataFutureX-Note-.*-Portable\.exe$/i.test(name) ||
+        // 无时间戳的旧命名，例如 DataFutureX-Note-1.0.0-Setup.exe
+        /^DataFutureX-Note-v?\d+\.\d+\.\d+-Setup\.exe$/i.test(name) ||
+        name === '安装.cmd'
+      ) {
+        try {
+          fs.unlinkSync(path.join(releaseDir, name))
+        } catch {}
       }
     }
   } finally {
     for (const p of [stubPath, zipPath]) {
-      try { if (fs.existsSync(p)) fs.unlinkSync(p) } catch {}
+      try {
+        if (fs.existsSync(p)) fs.unlinkSync(p)
+      } catch {}
     }
   }
 }

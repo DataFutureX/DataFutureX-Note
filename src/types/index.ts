@@ -290,7 +290,13 @@ export interface NoteAPI {
 
   openExternal(url: string): Promise<void>
   getLocalFileUrl(relativePath: string): Promise<string | null>
-  getAppInfo(): Promise<{ name: string; version: string; copyright: string }>
+  getAppInfo(): Promise<{
+    name: string
+    version: string
+    buildTime: string
+    homepage: string
+    copyright: string
+  }>
   showItemInFolder(filePath: string): Promise<void>
   /** 在系统文件管理器中打开/定位库内条目（文件夹或笔记） */
   revealInLibrary(entryId: string): Promise<void>

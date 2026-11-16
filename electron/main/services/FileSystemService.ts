@@ -79,46 +79,68 @@ export class FileSystemService {
       }
       throw err
     }
-    const childItems: { node: FolderNode; mtime: number; name: string }[] = []
-    const notes: Note[] = []
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue
-      if (entry.name === 'node_modules') continue
-      // 笔记附件目录不在目录树展示
-      if (entry.isDirectory() && entry.name.toLowerCase() === 'assets') continue
-      const childPath = path.join(dir, entry.name)
-      try {
-        if (entry.isDirectory()) {
+    const dirEntries = entries.filter((entry) => {
+      if (entry.name.startsWith('.')) return false
+      if (entry.name === 'node_modules') return false
+      if (entry.isDirectory() && entry.name.toLowerCase() === 'assets') return false
+      return true
+    })
+
+    const noteEntries = dirEntries.filter(
+      (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md')
+    )
+    const folderEntries = dirEntries.filter((entry) => entry.isDirectory())
+
+    // 同层笔记并行 stat
+    const notes = (
+      await Promise.all(
+        noteEntries.map(async (entry) => {
+          const childPath = path.join(dir, entry.name)
           try {
-            assertInsideRoot(root, await fs.promises.realpath(childPath))
-          } catch {
-            continue
+            const stat = await fs.promises.stat(childPath)
+            return {
+              id: toRelativeId(root, childPath),
+              name: noteDisplayName(entry.name),
+              folderId,
+              path: toRelativeId(root, childPath),
+              mtime: stat.mtimeMs,
+              size: stat.size
+            } satisfies Note
+          } catch (err) {
+            const code = (err as NodeJS.ErrnoException)?.code
+            if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') return null
+            throw err
           }
-          const childStat = await fs.promises.stat(childPath)
-          childItems.push({
-            node: await this.buildFolderNode(childPath, false, sort),
-            mtime: childStat.mtimeMs,
-            name: entry.name
-          })
-          continue
-        }
-        if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md')) continue
-        const stat = await fs.promises.stat(childPath)
-        notes.push({
-          id: toRelativeId(root, childPath),
-          name: noteDisplayName(entry.name),
-          folderId,
-          path: toRelativeId(root, childPath),
-          mtime: stat.mtimeMs,
-          size: stat.size
         })
-      } catch (err) {
-        // 扫描过程中文件被删/改名时跳过，避免整树失败
-        const code = (err as NodeJS.ErrnoException)?.code
-        if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') continue
-        throw err
-      }
-    }
+      )
+    ).filter((n): n is Note => !!n)
+
+    // 同层子目录并行展开（内部仍递归）
+    const childItems = (
+      await Promise.all(
+        folderEntries.map(async (entry) => {
+          const childPath = path.join(dir, entry.name)
+          try {
+            try {
+              assertInsideRoot(root, await fs.promises.realpath(childPath))
+            } catch {
+              return null
+            }
+            const childStat = await fs.promises.stat(childPath)
+            return {
+              node: await this.buildFolderNode(childPath, false, sort),
+              mtime: childStat.mtimeMs,
+              name: entry.name
+            }
+          } catch (err) {
+            const code = (err as NodeJS.ErrnoException)?.code
+            if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') return null
+            throw err
+          }
+        })
+      )
+    ).filter((item): item is { node: FolderNode; mtime: number; name: string } => !!item)
+
     const children = this.sortFolderItems(childItems, sort)
     const sortedNotes = this.sortNotes(notes, sort)
     return {
@@ -160,28 +182,31 @@ export class FileSystemService {
       if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') return []
       throw err
     }
-    const notes: Note[] = []
-    for (const entry of entries) {
-      if (!entry.isFile()) continue
-      if (!entry.name.toLowerCase().endsWith('.md')) continue
-      if (entry.name.startsWith('.')) continue
-      const full = path.join(dir, entry.name)
-      try {
-        const stat = await fs.promises.stat(full)
-        notes.push({
-          id: toRelativeId(root, full),
-          name: noteDisplayName(entry.name),
-          folderId,
-          path: toRelativeId(root, full),
-          mtime: stat.mtimeMs,
-          size: stat.size
+    const mdEntries = entries.filter(
+      (entry) => entry.isFile() && !entry.name.startsWith('.') && entry.name.toLowerCase().endsWith('.md')
+    )
+    const notes = (
+      await Promise.all(
+        mdEntries.map(async (entry) => {
+          const full = path.join(dir, entry.name)
+          try {
+            const stat = await fs.promises.stat(full)
+            return {
+              id: toRelativeId(root, full),
+              name: noteDisplayName(entry.name),
+              folderId,
+              path: toRelativeId(root, full),
+              mtime: stat.mtimeMs,
+              size: stat.size
+            } satisfies Note
+          } catch (err) {
+            const code = (err as NodeJS.ErrnoException)?.code
+            if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') return null
+            throw err
+          }
         })
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException)?.code
-        if (code === 'ENOENT' || code === 'EACCES' || code === 'EPERM') continue
-        throw err
-      }
-    }
+      )
+    ).filter((n): n is Note => !!n)
     return this.sortNotes(notes, sort)
   }
 

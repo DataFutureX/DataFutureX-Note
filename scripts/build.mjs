@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createBuildInfo, writeBuildInfo } from './build-info.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -52,6 +53,11 @@ async function main() {
   }
 
   if (mode === 'full' || mode === 'pack' || mode === 'dir') {
+    // 同步桌面快捷方式 / 托盘 / 安装界面用的立体 Logo
+    await run('node', ['scripts/generate-icon.mjs'])
+    const info = createBuildInfo()
+    writeBuildInfo([path.join(root, 'resources', 'build-info.json')], info)
+    console.log('[build] version', info.displayVersion, 'time', info.buildTime)
     // 统一打 dir；Setup 由自研安装器包装，避免 NSIS 临时目录/写入失败
     await run('npx', ['electron-builder', '--win', '--x64', '--dir'])
   }

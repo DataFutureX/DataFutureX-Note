@@ -11,7 +11,16 @@ import LogoMark from '@/components/Brand/LogoMark.vue'
 const emit = defineEmits<{ close: []; 'root-changed': [] }>()
 const settingsStore = useSettingsStore()
 const libraryStore = useLibraryStore()
-const appInfo = ref({ name: '', version: '', copyright: '' })
+const appInfo = ref({ name: '', version: '', buildTime: '', homepage: '', copyright: '' })
+const HOMEPAGE = 'https://www.datafuturex.cn/'
+
+async function openHomepage() {
+  try {
+    await window.noteAPI.openExternal(appInfo.value.homepage || HOMEPAGE)
+  } catch {
+    // ignore
+  }
+}
 const accentLabel = computed(
   () =>
     ACCENT_THEME_OPTIONS.find((o) => o.id === settingsStore.settings.accentTheme)?.label ||
@@ -19,7 +28,14 @@ const accentLabel = computed(
 )
 
 onMounted(async () => {
-  appInfo.value = await window.noteAPI.getAppInfo()
+  const info = await window.noteAPI.getAppInfo()
+  appInfo.value = {
+    name: info.name,
+    version: info.version,
+    buildTime: info.buildTime || '',
+    homepage: info.homepage || HOMEPAGE,
+    copyright: info.copyright
+  }
 })
 
 async function switchRoot() {
@@ -157,12 +173,18 @@ async function updateStartup(val: 'last-note' | 'default-folder') {
       <section class="about-section">
         <h2>关于</h2>
         <div class="about-brand">
-          <LogoMark class="about-logo" :size="56" />
+          <LogoMark class="about-logo" :size="72" enhanced />
           <div class="about-text">
             <p><strong>{{ appInfo.name }}</strong></p>
             <p>版本 {{ appInfo.version }}</p>
+            <p v-if="appInfo.buildTime">打包时间 {{ appInfo.buildTime }}</p>
             <p>{{ appInfo.copyright }}</p>
-            <p class="hint">DataFutureX 品牌 · 本地优先 · 开放 Markdown 格式</p>
+            <p>
+              <a class="homepage-link" href="#" @click.prevent="openHomepage">{{
+                appInfo.homepage || HOMEPAGE
+              }}</a>
+            </p>
+            <p class="hint">DataFutureX 数智未来·AI工坊 · 本地优先 · 开放 Markdown 格式</p>
           </div>
         </div>
       </section>
@@ -230,14 +252,16 @@ h2 {
   display: flex;
   align-items: flex-start;
   gap: 16px;
+  overflow: visible;
+}
+
+.about-section {
+  overflow: visible;
 }
 
 .about-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
   flex-shrink: 0;
-  display: block;
+  overflow: visible;
 }
 
 .about-text p {
@@ -246,6 +270,15 @@ h2 {
 
 .about-text .hint {
   margin-top: 4px;
+}
+
+.homepage-link {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.homepage-link:hover {
+  text-decoration: underline;
 }
 
 .row {

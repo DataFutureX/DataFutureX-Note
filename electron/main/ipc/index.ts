@@ -26,6 +26,49 @@ import { assertInsideRoot, ensureDir, isWritableDir } from '../utils/pathSafety'
 import { defaultLibraryDir, probeWritePaths } from '../utils/writableFs'
 import { toAssetUrl } from '../utils/assetProtocol'
 
+type AppBuildInfo = {
+  version: string
+  displayVersion: string
+  buildTime: string
+  buildTag?: string
+}
+
+function readAppBuildInfo(): AppBuildInfo {
+  const fallback: AppBuildInfo = {
+    version: '1.0.0',
+    displayVersion: 'v1.0.0',
+    buildTime: ''
+  }
+  const candidates = [
+    typeof process.resourcesPath === 'string' ? path.join(process.resourcesPath, 'build-info.json') : '',
+    path.join(process.cwd(), 'build-info.json'),
+    path.join(process.cwd(), 'resources', 'build-info.json'),
+    path.join(__dirname, '../../../resources/build-info.json'),
+    path.join(__dirname, '../../build-info.json')
+  ]
+  for (const p of candidates) {
+    try {
+      if (!p || !fs.existsSync(p)) continue
+      const raw = JSON.parse(fs.readFileSync(p, 'utf8')) as Partial<AppBuildInfo>
+      const version = String(raw.version || fallback.version).replace(/^v/i, '')
+      return {
+        version,
+        displayVersion: String(raw.displayVersion || `v${version}`),
+        buildTime: String(raw.buildTime || ''),
+        buildTag: raw.buildTag ? String(raw.buildTag) : undefined
+      }
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    const version = String(app.getVersion?.() || fallback.version).replace(/^v/i, '')
+    return { ...fallback, version, displayVersion: `v${version}` }
+  } catch {
+    return fallback
+  }
+}
+
 function getWin(): BrowserWindow | null {
   return BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || null
 }
@@ -283,11 +326,16 @@ export function registerIpc(deps: {
     })
   )
 
-  ipcMain.handle('getAppInfo', async () => ({
-    name: 'DataFutureX Note',
-    version: '1.0.0',
-    copyright: 'Copyright © DataFutureX'
-  }))
+  ipcMain.handle('getAppInfo', async () => {
+    const info = readAppBuildInfo()
+    return {
+      name: 'DataFutureX Note',
+      version: info.displayVersion,
+      buildTime: info.buildTime,
+      homepage: 'https://www.datafuturex.cn/',
+      copyright: 'Copyright © DataFutureX 数智未来·AI工坊'
+    }
+  })
 
   ipcMain.handle('showItemInFolder', async (_e, filePath: string) => {
     shell.showItemInFolder(String(filePath))
@@ -456,7 +504,8 @@ export function registerIpc(deps: {
         ok: steps.every((s) => s.ok),
         userData: writableUserData,
         rootDirectory: root,
-        appVersion: app.getVersion?.() || '1.0.0',
+        appVersion: readAppBuildInfo().displayVersion,
+
         probes,
         steps
       }

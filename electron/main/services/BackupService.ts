@@ -1,10 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import AdmZip from 'adm-zip'
 import { dialog, BrowserWindow } from 'electron'
 import { BackupManifest, BackupResult } from '../../../src/types'
 import { FileSystemService } from './FileSystemService'
 import { assertInsideRoot, toRelativeId } from '../utils/pathSafety'
+
+async function loadAdmZip() {
+  const mod = await import('adm-zip')
+  return mod.default
+}
 
 function stamp(): string {
   const d = new Date()
@@ -41,6 +45,7 @@ export class BackupService {
     }
 
     const zipPath = result.filePath.endsWith('.zip') ? result.filePath : `${result.filePath}.zip`
+    const AdmZip = await loadAdmZip()
     const zip = new AdmZip()
     let fileCount = 0
     let totalSize = 0
@@ -80,6 +85,7 @@ export class BackupService {
   }
 
   async inspect(zipPath: string): Promise<BackupManifest> {
+    const AdmZip = await loadAdmZip()
     const zip = new AdmZip(zipPath)
     const entries = zip.getEntries()
     let fileCount = 0

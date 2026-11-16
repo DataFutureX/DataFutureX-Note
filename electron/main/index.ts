@@ -100,17 +100,24 @@ const trayService = new TrayService()
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 function resolveWindowIcon(): string | undefined {
-  // 任务栏/窗口必须用高清多尺寸图标，禁止误用 16px 托盘图（会被放大发糊）
+  // 任务栏/窗口必须用高清多尺寸图标，禁止误用损坏的 16-only ICO 或托盘小图
+  const resourcesPath = typeof process.resourcesPath === 'string' ? process.resourcesPath : ''
   const candidates = [
+    path.join(resourcesPath, 'icon.ico'),
+    path.join(resourcesPath, 'icon-256.png'),
+    path.join(resourcesPath, 'icon.png'),
+    path.join(process.cwd(), 'icon.ico'),
     path.join(process.cwd(), 'resources', 'icon.ico'),
-    path.join(__dirname, '../../resources/icon.ico'),
     path.join(process.cwd(), 'resources', 'icon-256.png'),
     path.join(process.cwd(), 'resources', 'icon.png'),
+    path.join(__dirname, '../../resources/icon.ico'),
+    path.join(__dirname, '../../resources/icon-256.png'),
     path.join(__dirname, '../../resources/icon.png')
   ]
   for (const p of candidates) {
     try {
-      if (p && fs.existsSync(p) && fs.statSync(p).size > 1000) return p
+      // 完整多尺寸 ICO ≈ 100KB+；坏的 16-only ICO 约 1KB
+      if (p && fs.existsSync(p) && fs.statSync(p).size > 8000) return p
     } catch {
       // ignore
     }
@@ -165,12 +172,19 @@ function createWindow(): void {
   }
   mainWindow.once('ready-to-show', () => {
     reveal()
-    // 主实例：窗口就绪后再建托盘；查看进程不挂托盘
-    if (!viewerMode) trayService.ensure(() => mainWindow, 3)
+    // 主实例：窗口显示后再建托盘，避免拖慢首屏
+    if (!viewerMode) {
+      setTimeout(() => {
+        try {
+          trayService.ensure(() => mainWindow, 2)
+        } catch (err) {
+          console.warn('[DataFutureX-Note] tray init failed:', err)
+        }
+      }, 800)
+    }
   })
   // 兜底：加载异常时也尽量把窗口拉起来
   setTimeout(reveal, 2500)
-  if (!viewerMode) setTimeout(() => trayService.ensure(() => mainWindow, 2), 1500)
 
   // 关闭按钮：主实例有托盘则值守隐藏；查看进程直接关闭
   mainWindow.on('close', (event) => {
@@ -267,41 +281,7 @@ app.whenReady().then(async () => {
   installAssetProtocol(() => settings.getRootDirectory())
   await settings.load()
 
-  // 启动参数 / macOS open-file 中的 Markdown
-  const launchMd = pendingOsOpenFile || extractMarkdownPath(process.argv)
-  pendingOsOpenFile = null
-  if (launchMd) {
-    if (viewerMode || isMarkdownInLibrary(launchMd, settings.getRootDirectory())) {
-      await queueOpenMarkdown(launchMd)
-    } else {
-      // 库外文件另开查看进程，主窗口仍进原笔记库
-      spawnMarkdownViewer(launchMd)
-    }
-  }
-
-  // 主实例：若已配置根目录但对当前 Electron 进程不可写，自动切到可写的推荐库
-  if (!viewerMode) {
-    const configuredRoot = settings.getRootDirectory()
-    if (configuredRoot) {
-      const writable = await isWritableDir(configuredRoot)
-      if (!writable) {
-        const fallback = defaultLibraryDir(writableUserData)
-        await ensureDir(fallback)
-        if (canWriteSync(fallback)) {
-          console.warn(
-            `[DataFutureX-Note] 原笔记库不可写，已切换到推荐目录：${fallback}\n原路径：${configuredRoot}`
-          )
-          await settings.setRootDirectory(fallback)
-        } else {
-          console.warn(`[DataFutureX-Note] 笔记库不可写：${configuredRoot}`)
-          await settings.update({ rootDirectory: null })
-        }
-      }
-    }
-  }
-
   themeService.applyPreference(settings.get().theme)
-  // 菜单改由渲染进程第一栏承载，隐藏系统默认 File/Edit/View/Window/Help
   Menu.setApplicationMenu(null)
 
   const applyChromeTheme = (theme: ResolvedTheme, accent?: AccentTheme) => {
@@ -324,12 +304,10 @@ app.whenReady().then(async () => {
     }
   }
 
-  // 生效主题变化 → 更新窗口铬（标题栏/背景，跟随当前主题色）
   themeService.onUpdated((theme) => {
     applyChromeTheme(theme, settings.get().accentTheme)
   })
 
-  // OS 主题变化单独通知渲染进程（仅「跟随系统」时使用，避免被 light/dark 强制值污染）
   nativeTheme.on('updated', () => {
     const osTheme = themeService.getOsTheme()
     for (const win of BrowserWindow.getAllWindows()) {
@@ -388,19 +366,9 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('consumeOpenMarkdownRequest', async () => takePendingOpenMarkdown())
 
+  // 先出窗，再处理后台启动任务（打开 MD / 可写探测 / 托盘）
   createWindow()
   watchLibrary()
-
-  // 再兜底一次：部分环境 ready-to-show 不可靠
-  if (!viewerMode) {
-    setTimeout(() => {
-      try {
-        trayService.ensure(() => mainWindow, 3)
-      } catch (err) {
-        console.warn('[DataFutureX-Note] tray init failed:', err)
-      }
-    }, 1200)
-  }
 
   app.on('activate', () => {
     if (!mainWindow || mainWindow.isDestroyed()) createWindow()
@@ -410,6 +378,40 @@ app.whenReady().then(async () => {
       mainWindow.focus()
     }
   })
+
+  void (async () => {
+    const launchMd = pendingOsOpenFile || extractMarkdownPath(process.argv)
+    pendingOsOpenFile = null
+    if (launchMd) {
+      if (viewerMode || isMarkdownInLibrary(launchMd, settings.getRootDirectory())) {
+        // 留给渲染进程 consumeOpenMarkdownRequest / onOpenMarkdownFile
+        await queueOpenMarkdown(launchMd)
+        if (pendingOpenMarkdown) sendOpenMarkdown(pendingOpenMarkdown)
+      } else {
+        spawnMarkdownViewer(launchMd)
+      }
+    }
+
+    if (!viewerMode) {
+      const configuredRoot = settings.getRootDirectory()
+      if (configuredRoot) {
+        const writable = await isWritableDir(configuredRoot)
+        if (!writable) {
+          const fallback = defaultLibraryDir(writableUserData)
+          await ensureDir(fallback)
+          if (canWriteSync(fallback)) {
+            console.warn(
+              `[DataFutureX-Note] 原笔记库不可写，已切换到推荐目录：${fallback}\n原路径：${configuredRoot}`
+            )
+            await settings.setRootDirectory(fallback)
+          } else {
+            console.warn(`[DataFutureX-Note] 笔记库不可写：${configuredRoot}`)
+            await settings.update({ rootDirectory: null })
+          }
+        }
+      }
+    }
+  })()
 })
 
 app.on('window-all-closed', () => {

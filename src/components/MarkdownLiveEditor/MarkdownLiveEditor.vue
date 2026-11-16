@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import Vditor from 'vditor'
-import 'vditor/dist/index.css'
+import type VditorType from 'vditor'
 import { useLibraryStore } from '@/stores/library'
 import { useSettingsStore } from '@/stores/settings'
 import {
@@ -24,10 +23,19 @@ const emit = defineEmits<{
 const host = ref<HTMLDivElement | null>(null)
 const settingsStore = useSettingsStore()
 const library = useLibraryStore()
-let editor: Vditor | null = null
+let editor: VditorType | null = null
+let VditorCtor: typeof VditorType | null = null
 let applying = false
 let ready = false
 let lastJumpToken = 0
+
+async function ensureVditor() {
+  if (VditorCtor) return VditorCtor
+  const mod = await import('vditor')
+  await import('vditor/dist/index.css')
+  VditorCtor = mod.default
+  return VditorCtor
+}
 
 function jumpToHeading(line: number, text: string) {
   if (!host.value) return
@@ -131,7 +139,7 @@ function onPasteCapture(e: ClipboardEvent) {
   })()
 }
 
-function createEditor() {
+async function createEditor() {
   if (!host.value) return
   host.value.removeEventListener('paste', onPasteCapture, true)
   editor?.destroy()
@@ -139,6 +147,8 @@ function createEditor() {
   ready = false
   host.value.innerHTML = ''
 
+  const Vditor = await ensureVditor()
+  if (!host.value) return
   const isDark = settingsStore.resolvedTheme === 'dark'
 
   editor = new Vditor(host.value, {
@@ -216,23 +226,24 @@ function createEditor() {
 
 async function rewriteImages() {
   if (!host.value || !props.noteDir) return
-  const imgs = host.value.querySelectorAll('.vditor-ir img, .vditor-reset img')
-  for (const img of Array.from(imgs)) {
-    const el = img as HTMLImageElement
-    const original = (el.getAttribute('data-src') || '').trim()
-    const current = (el.getAttribute('src') || '').trim()
-    // 相对路径优先；file:// 在 webSecurity 下会裂图，需换 dfx-asset
-    const candidate =
-      (original && !ABSOLUTE_SRC.test(original) && original) ||
-      (current && !ABSOLUTE_SRC.test(current) && current) ||
-      ''
-    if (!candidate) continue
-    const resolved = await resolveLocalImage(candidate)
-    if (resolved && resolved !== current) {
-      el.setAttribute('data-src', candidate)
-      el.setAttribute('src', resolved)
-    }
-  }
+  const imgs = Array.from(host.value.querySelectorAll('.vditor-ir img, .vditor-reset img')) as HTMLImageElement[]
+  await Promise.all(
+    imgs.map(async (el) => {
+      const original = (el.getAttribute('data-src') || '').trim()
+      const current = (el.getAttribute('src') || '').trim()
+      // 相对路径优先；file:// 在 webSecurity 下会裂图，需换 dfx-asset
+      const candidate =
+        (original && !ABSOLUTE_SRC.test(original) && original) ||
+        (current && !ABSOLUTE_SRC.test(current) && current) ||
+        ''
+      if (!candidate) return
+      const resolved = await resolveLocalImage(candidate)
+      if (resolved && resolved !== current) {
+        el.setAttribute('data-src', candidate)
+        el.setAttribute('src', resolved)
+      }
+    })
+  )
 }
 
 let imageObserver: MutationObserver | null = null
@@ -243,7 +254,7 @@ function scheduleRewriteImages() {
   rewriteTimer = setTimeout(() => {
     rewriteTimer = null
     void rewriteImages()
-  }, 40)
+  }, 120)
 }
 
 function ensureImageObserver() {
@@ -259,7 +270,7 @@ function ensureImageObserver() {
 
 onMounted(async () => {
   await nextTick()
-  createEditor()
+  await createEditor()
 })
 
 watch(
@@ -278,7 +289,7 @@ watch(
   () => settingsStore.resolvedTheme,
   (theme) => {
     if (!editor || !ready) {
-      createEditor()
+      void createEditor()
       return
     }
     try {
@@ -286,7 +297,7 @@ watch(
       const contentTheme = theme === 'dark' ? 'dark' : 'light'
       editor.setTheme(vditorTheme as 'dark' | 'classic', contentTheme, theme === 'dark' ? 'native' : 'github')
     } catch {
-      createEditor()
+      void createEditor()
     }
   }
 )

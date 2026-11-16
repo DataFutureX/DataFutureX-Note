@@ -1,9 +1,9 @@
 {
   "name": "datafuturex-note",
-  "version": "v1.0.0",
+  "version": "1.0.0",
   "description": "DataFutureX Note - 本地优先的桌面 Markdown 笔记软件",
   "main": "dist-electron/main/index.js",
-  "author": "DataFutureX",
+  "author": "DataFutureX 数智未来·AI工坊",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -58,6 +58,7 @@
   "build": {
     "appId": "com.datafuturex.note",
     "productName": "DataFutureX Note",
+    "copyright": "Copyright © DataFutureX 数智未来·AI工坊",
     "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "release",
@@ -84,12 +85,20 @@
       {
         "from": "resources/tray-32.png",
         "to": "tray-32.png"
+      },
+      {
+        "from": "resources/build-info.json",
+        "to": "build-info.json"
       }
     ],
     "extraFiles": [
       {
         "from": "resources/icon.ico",
         "to": "icon.ico"
+      },
+      {
+        "from": "resources/build-info.json",
+        "to": "build-info.json"
       }
     ],
     "fileAssociations": [
@@ -109,6 +118,7 @@
       }
     ],
     "win": {
+      "publisherName": "DataFutureX 数智未来·AI工坊",
       "target": [
         {
           "target": "dir",

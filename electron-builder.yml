@@ -1,5 +1,6 @@
 appId: com.datafuturex.note
 productName: DataFutureX Note
+copyright: Copyright © DataFutureX 数智未来·AI工坊
 electronDist: node_modules/electron/dist
 directories:
   output: release
@@ -16,13 +17,27 @@ files:
 extraResources:
   - from: resources/icon.ico
     to: icon.ico
+  - from: resources/icon.png
+    to: icon.png
+  - from: resources/icon-256.png
+    to: icon-256.png
   - from: resources/tray-16.png
     to: tray-16.png
+  - from: resources/tray-20.png
+    to: tray-20.png
+  - from: resources/tray-24.png
+    to: tray-24.png
   - from: resources/tray-32.png
     to: tray-32.png
+  - from: resources/tray.ico
+    to: tray.ico
+  - from: resources/build-info.json
+    to: build-info.json
 extraFiles:
   - from: resources/icon.ico
     to: icon.ico
+  - from: resources/build-info.json
+    to: build-info.json
 fileAssociations:
   - ext: md
     name: Markdown
@@ -37,6 +52,7 @@ fileAssociations:
 
 win:
   # 只产出 win-unpacked；单文件 Setup 由 scripts/wrap-installer.mjs 生成（不使用 NSIS）
+  publisherName: DataFutureX 数智未来·AI工坊
   target:
     - target: dir
       arch:

@@ -45,10 +45,16 @@ export default async function afterPack(context) {
     return
   }
 
+  // 部分环境直接改 appOutDir 会失败；先在仓库 .tmp 中写入再回拷
+  const tmpDir = path.join(projectDir, '.tmp')
+  fs.mkdirSync(tmpDir, { recursive: true })
+  const tmpExe = path.join(tmpDir, `afterpack-${process.pid}.exe`)
+  fs.copyFileSync(exePath, tmpExe)
+
   const result = spawnSync(
     rcedit,
     [
-      exePath,
+      tmpExe,
       '--set-icon',
       iconPath,
       '--set-version-string',
@@ -59,20 +65,24 @@ export default async function afterPack(context) {
       'DataFutureX Note 数字未来笔记',
       '--set-version-string',
       'CompanyName',
-      'DataFutureX',
+      'DataFutureX 数智未来·AI工坊',
       '--set-version-string',
       'LegalCopyright',
-      'Copyright © DataFutureX'
+      'Copyright © DataFutureX 数智未来·AI工坊'
     ],
     { encoding: 'utf8' }
   )
 
   if (result.status !== 0) {
+    try { fs.unlinkSync(tmpExe) } catch {}
     console.warn('[afterPack] rcedit failed:', result.stderr || result.stdout || result.error)
     return
   }
 
-  // 同步一份 Logo 到安装根目录旁，供 NSIS 快捷方式引用
+  fs.copyFileSync(tmpExe, exePath)
+  try { fs.unlinkSync(tmpExe) } catch {}
+
+  // 同步一份 Logo 到安装根目录旁，供快捷方式引用
   const sideIcon = path.join(context.appOutDir, 'icon.ico')
   fs.copyFileSync(iconPath, sideIcon)
 

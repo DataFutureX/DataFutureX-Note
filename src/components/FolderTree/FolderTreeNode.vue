@@ -37,7 +37,7 @@ const emit = defineEmits<{
 const draft = ref('')
 const rootEl = ref<HTMLElement | null>(null)
 
-const isOpen = () => props.expanded[props.node.id] ?? props.depth < 2
+const isOpen = () => props.expanded[props.node.id] ?? props.depth < 1
 const hasChildren = () => props.node.children.length > 0 || props.node.notes.length > 0
 const isRenamingFolder = () => props.renamingId === props.node.id
 const isRenamingNote = (note: Note) => props.renamingId === note.id

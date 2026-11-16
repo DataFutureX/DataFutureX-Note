@@ -1,10 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import AdmZip from 'adm-zip'
 import { ConflictStrategy, ImportResult } from '../../../src/types'
 import { FileSystemService } from './FileSystemService'
 import { assertInsideRoot, ensureDir, pathExists } from '../utils/pathSafety'
+
+async function loadAdmZip() {
+  const mod = await import('adm-zip')
+  return mod.default
+}
 
 const MAX_FILES = 50000
 const MAX_TOTAL_SIZE = 2 * 1024 * 1024 * 1024 // 2GB
@@ -26,7 +30,8 @@ export class ImportService {
       throw Object.assign(new Error('备份文件不存在'), { code: 'ZIP_NOT_FOUND' })
     }
 
-    let zip: AdmZip
+    const AdmZip = await loadAdmZip()
+    let zip: InstanceType<typeof AdmZip>
     try {
       zip = new AdmZip(zipPath)
     } catch {

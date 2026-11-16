@@ -295,21 +295,45 @@ select {
   color: var(--accent-color);
 }
 
+.about-message-box {
+  width: min(360px, 92vw);
+}
+
+.about-message-box .el-message-box__header {
+  text-align: center;
+  padding-right: 16px;
+}
+
+.about-message-box .el-message-box__title {
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
+.about-message-box .el-message-box__container,
+.about-message-box .el-message-box__message {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+.about-message-box .el-message-box__btns {
+  justify-content: center;
+}
+
 .about-message-box .about-dialog {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 6px;
-  padding: 4px 0 2px;
+  padding: 8px 0 4px;
+  width: 100%;
 }
 
 .about-message-box .about-dialog-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: block;
-  margin-bottom: 6px;
+  margin: 2px auto 10px;
+  overflow: visible;
 }
 
 .about-message-box .about-dialog-name {
@@ -317,10 +341,25 @@ select {
   font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
+  text-align: center;
 }
 
 .about-message-box .about-dialog-meta {
   margin: 0;
   font-size: 13px;
   color: var(--text-secondary);
+  text-align: center;
+}
+
+.about-message-box .about-dialog-link {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--accent-color);
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+.about-message-box .about-dialog-link:hover {
+  text-decoration: underline;
 }

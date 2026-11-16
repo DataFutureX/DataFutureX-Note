@@ -53,9 +53,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    minify: false,
+    minify: 'esbuild',
     target: 'esnext',
-    cssMinify: false
+    cssMinify: true,
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/vditor')) return 'vditor'
+          if (id.includes('node_modules/@codemirror') || id.includes('node_modules/codemirror')) {
+            return 'codemirror'
+          }
+          if (id.includes('node_modules/element-plus')) return 'element-plus'
+        }
+      }
+    }
   },
   esbuild: {
     legalComments: 'none'

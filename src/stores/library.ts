@@ -45,6 +45,26 @@ export const useLibraryStore = defineStore('library', () => {
   /** 串行化保存，避免自动保存与切换保存并发导致 mtime 冲突 */
   let saveQueue: Promise<void> = Promise.resolve()
   let jumpToken = 0
+  let recoveryTimer: ReturnType<typeof setTimeout> | null = null
+  let settingsPersistTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingSettings: { lastNoteId?: string | null; lastFolderId?: string | null } = {}
+
+  function scheduleSettingsPersist(partial: { lastNoteId?: string | null; lastFolderId?: string | null }) {
+    pendingSettings = { ...pendingSettings, ...partial }
+    if (settingsPersistTimer) clearTimeout(settingsPersistTimer)
+    settingsPersistTimer = setTimeout(() => {
+      settingsPersistTimer = null
+      const payload = pendingSettings
+      pendingSettings = {}
+      void settingsStore.update(payload)
+    }, 400)
+  }
+
+  function notesFromTreeFolder(folderId: string): Note[] | null {
+    const folder = findFolder(tree.value, folderId)
+    if (!folder?.notes) return null
+    return folder.notes
+  }
 
   const selectedFolder = computed(() =>
     selectedFolderId.value ? findFolder(tree.value, selectedFolderId.value) : null
@@ -88,15 +108,20 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
-  async function loadNotes(folderId: string) {
+  async function loadNotes(folderId: string, options: { force?: boolean } = {}) {
     selectedFolderId.value = folderId
-    try {
-      notes.value = await window.noteAPI.listNotes(folderId, settingsStore.settings.sortMode)
-    } catch (e) {
-      notes.value = []
-      error.value = ipcErrorMessage(e, '加载笔记列表失败')
+    const cached = !options.force ? notesFromTreeFolder(folderId) : null
+    if (cached) {
+      notes.value = cached
+    } else {
+      try {
+        notes.value = await window.noteAPI.listNotes(folderId, settingsStore.settings.sortMode)
+      } catch (e) {
+        notes.value = []
+        error.value = ipcErrorMessage(e, '加载笔记列表失败')
+      }
     }
-    await settingsStore.update({ lastFolderId: folderId })
+    scheduleSettingsPersist({ lastFolderId: folderId })
   }
 
   /** 选中文件夹（用于在其下新建笔记/子文件夹）；会离开当前笔记 */
@@ -115,13 +140,13 @@ export const useLibraryStore = defineStore('library', () => {
     originalContent.value = ''
     noteMtime.value = null
     saveStatus.value = 'saved'
-    notes.value = await window.noteAPI.listNotes(folderId, settingsStore.settings.sortMode)
-    await settingsStore.update({ lastFolderId: folderId, lastNoteId: null })
+    await loadNotes(folderId)
+    scheduleSettingsPersist({ lastFolderId: folderId, lastNoteId: null })
     return true
   }
 
   async function selectNote(noteId: string, force = false) {
-    // 切换前静默保存当前笔记，不再弹“尚未保存”确认
+    // 切换前必须先落盘当前脏笔记，避免写串内容
     if (!force && isDirty.value && selectedNoteId.value && selectedNoteId.value !== noteId) {
       try {
         await saveCurrent({ silent: true })
@@ -131,23 +156,30 @@ export const useLibraryStore = defineStore('library', () => {
       }
     }
     const text = await window.noteAPI.readNote(noteId)
-    const draft = await window.noteAPI.loadRecoveryDraft(noteId)
     selectedNoteId.value = noteId
-    if (draft && draft !== text) {
-      // 已有磁盘内容时优先用磁盘文件；清除过期草稿，避免反复打断
-      content.value = text
-      await window.noteAPI.clearRecoveryDraft(noteId)
-      saveStatus.value = 'saved'
-    } else {
-      content.value = text
-      saveStatus.value = 'saved'
-    }
+    content.value = text
     originalContent.value = text
+    saveStatus.value = 'saved'
     const note =
       notes.value.find((n) => n.id === noteId) || findNoteInTree(tree.value, noteId)
     noteMtime.value = note?.mtime ?? null
     if (note) selectedFolderId.value = note.folderId
-    await settingsStore.update({ lastNoteId: noteId, lastFolderId: note?.folderId ?? selectedFolderId.value })
+    scheduleSettingsPersist({
+      lastNoteId: noteId,
+      lastFolderId: note?.folderId ?? selectedFolderId.value
+    })
+    // 恢复草稿移出关键路径
+    void (async () => {
+      try {
+        const draft = await window.noteAPI.loadRecoveryDraft(noteId)
+        if (selectedNoteId.value !== noteId) return
+        if (draft && draft !== text) {
+          await window.noteAPI.clearRecoveryDraft(noteId)
+        }
+      } catch {
+        // ignore
+      }
+    })()
     return true
   }
 
@@ -188,12 +220,11 @@ export const useLibraryStore = defineStore('library', () => {
       try {
         const note = await window.noteAPI.renameNote(noteId, candidate)
         if (selectedNoteId.value === noteId) selectedNoteId.value = note.id
-        await settingsStore.update({
+        scheduleSettingsPersist({
           lastNoteId: note.id,
           lastFolderId: note.folderId
         })
-        await refreshTree(true)
-        if (selectedFolderId.value) await loadNotes(selectedFolderId.value)
+        if (selectedFolderId.value) await loadNotes(selectedFolderId.value, { force: true })
         return note.id
       } catch (e) {
         const msg = ipcErrorMessage(e)
@@ -232,8 +263,11 @@ export const useLibraryStore = defineStore('library', () => {
         }
         if (selectedFolderId.value) {
           const folderId = selectedFolderId.value
+          // 局部刷新当前夹列表，避免整树扫描
           const list = await window.noteAPI.listNotes(folderId, settingsStore.settings.sortMode)
           if (selectedFolderId.value === folderId) notes.value = list
+          const folder = findFolder(tree.value, folderId)
+          if (folder) folder.notes = list
         }
       } catch (e) {
         const err = e as { code?: string; message?: string }
@@ -282,7 +316,14 @@ export const useLibraryStore = defineStore('library', () => {
     content.value = next
     saveStatus.value = next === originalContent.value ? 'saved' : 'dirty'
     if (selectedNoteId.value && next !== originalContent.value) {
-      void window.noteAPI.saveRecoveryDraft(selectedNoteId.value, next)
+      const noteId = selectedNoteId.value
+      if (recoveryTimer) clearTimeout(recoveryTimer)
+      recoveryTimer = setTimeout(() => {
+        recoveryTimer = null
+        if (selectedNoteId.value === noteId && content.value !== originalContent.value) {
+          void window.noteAPI.saveRecoveryDraft(noteId, content.value)
+        }
+      }, 1200)
     }
   }
 
