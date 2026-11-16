@@ -1,7 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import { AccentTheme, AppSettings, DEFAULT_SETTINGS } from '../../../src/types'
+import {
+  AccentTheme,
+  AppSettings,
+  ContentLayoutMode,
+  DEFAULT_SETTINGS
+} from '../../../src/types'
 import { atomicWrite, ensureDir } from '../utils/pathSafety'
 
 function normalizeAccentTheme(value: unknown): AccentTheme {
@@ -16,6 +21,10 @@ function normalizeAccentTheme(value: unknown): AccentTheme {
     return value
   }
   return DEFAULT_SETTINGS.accentTheme
+}
+
+function normalizeContentLayout(value: unknown): ContentLayoutMode {
+  return value === 'center' || value === 'fill' ? value : DEFAULT_SETTINGS.contentLayout
 }
 
 export class SettingsService {
@@ -49,14 +58,16 @@ export class SettingsService {
         },
         recentNotes: Array.isArray(parsed.recentNotes)
           ? parsed.recentNotes.slice(0, 10)
-          : [...DEFAULT_SETTINGS.recentNotes]
+          : [...DEFAULT_SETTINGS.recentNotes],
+        contentLayout: normalizeContentLayout(parsed.contentLayout)
       }
     } catch {
       this.settings = {
         ...DEFAULT_SETTINGS,
         panelLayout: { ...DEFAULT_SETTINGS.panelLayout },
         notePositions: { ...DEFAULT_SETTINGS.notePositions },
-        recentNotes: [...DEFAULT_SETTINGS.recentNotes]
+        recentNotes: [...DEFAULT_SETTINGS.recentNotes],
+        contentLayout: DEFAULT_SETTINGS.contentLayout
       }
     }
     return this.get()
@@ -97,6 +108,9 @@ export class SettingsService {
       ...partial,
       accentTheme: normalizeAccentTheme(
         partial.accentTheme !== undefined ? partial.accentTheme : this.settings.accentTheme
+      ),
+      contentLayout: normalizeContentLayout(
+        partial.contentLayout !== undefined ? partial.contentLayout : this.settings.contentLayout
       ),
       panelLayout: {
         ...this.settings.panelLayout,

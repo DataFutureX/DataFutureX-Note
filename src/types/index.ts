@@ -19,6 +19,9 @@ export type SaveStatus = 'saved' | 'saving' | 'dirty' | 'failed'
 /** 视图模式：live=Typora 式即时渲染 */
 export type ViewMode = 'live' | 'edit' | 'preview' | 'split'
 
+/** 笔记正文版式：铺满整栏 / 居中定宽 */
+export type ContentLayoutMode = 'fill' | 'center'
+
 export interface FolderNode {
   id: string
   name: string
@@ -119,6 +122,8 @@ export interface AppSettings {
   notePositions: Record<string, NoteViewPosition>
   /** 最近打开的笔记（最多 10 条） */
   recentNotes: RecentNoteEntry[]
+  /** 笔记显示区域版式：铺满 / 居中 */
+  contentLayout: ContentLayoutMode
 }
 
 export interface BackupManifestEntry {
@@ -179,6 +184,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   windowBounds: null,
   notePositions: {},
   recentNotes: [],
+  contentLayout: 'fill',
   panelLayout: {
     folderWidth: 220,
     noteWidth: 300,

@@ -12,7 +12,7 @@ import EditorToolbar, { type FormatCommand } from '@/components/EditorToolbar/Ed
 import type { MenuAction } from '@/components/AppMenuBar/AppMenuBar.vue'
 import { useLibraryStore } from '@/stores/library'
 import { useSettingsStore } from '@/stores/settings'
-import type { SortMode, ViewMode } from '@/types'
+import type { ContentLayoutMode, SortMode, ViewMode } from '@/types'
 import { applyFormatCommand, type FormatTarget } from '@/utils/formatCommands'
 import { ipcErrorMessage } from '@/utils/ipcError'
 import { onMenuAction } from '@/utils/menuBus'
@@ -89,6 +89,18 @@ const viewModeOptions: { id: ViewMode; label: string }[] = [
 const viewModeLabel = computed(
   () => viewModeOptions.find((o) => o.id === library.viewMode)?.label || '视图'
 )
+
+const contentLayout = computed({
+  get: () =>
+    settingsStore.settings.contentLayout === 'center' ? 'center' : ('fill' as ContentLayoutMode),
+  set: (mode: ContentLayoutMode) => {
+    void settingsStore.update({ contentLayout: mode })
+  }
+})
+
+function setContentLayout(mode: ContentLayoutMode) {
+  contentLayout.value = mode
+}
 
 function toggleCreateMenu(e?: MouseEvent) {
   e?.stopPropagation()
@@ -908,6 +920,36 @@ onBeforeUnmount(() => {
               @command="onFormatCommand"
             />
           </div>
+          <div v-if="library.selectedNoteId" class="layout-mode-switch" role="group" aria-label="版式">
+            <button
+              type="button"
+              class="layout-btn"
+              :class="{ active: contentLayout === 'fill' }"
+              title="铺满显示"
+              aria-label="铺满显示"
+              @click="setContentLayout('fill')"
+            >
+              <!-- 铺满：整栏矩形 -->
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v10h16V7H4z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="layout-btn"
+              :class="{ active: contentLayout === 'center' }"
+              title="居中显示"
+              aria-label="居中显示"
+              @click="setContentLayout('center')"
+            >
+              <!-- 居中：中间窄栏 + 两侧留白 -->
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 6h2v12H3V6zm16 0h2v12h-2V6zM8 5h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v10h6V7H9z" />
+              </svg>
+            </button>
+          </div>
           <div v-if="library.selectedNoteId" class="view-mode-menu" @click.stop>
             <button
               class="btn view-trigger"
@@ -937,7 +979,11 @@ onBeforeUnmount(() => {
         <div v-if="!library.selectedNoteId" class="empty-state">
           <div>选择或新建一篇笔记开始写作</div>
         </div>
-        <div v-else class="content-area" :class="library.viewMode">
+        <div
+          v-else
+          class="content-area"
+          :class="[library.viewMode, contentLayout === 'center' ? 'layout-center' : 'layout-fill']"
+        >
           <div v-if="library.viewMode === 'live'" class="editor-pane live-pane">
             <MarkdownLiveEditor
               ref="liveEditorRef"
@@ -1176,6 +1222,48 @@ onBeforeUnmount(() => {
   flex-wrap: nowrap;
   overflow-x: auto;
   box-sizing: border-box;
+}
+
+.layout-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--panel-bg);
+}
+
+.layout-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layout-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.layout-btn.active {
+  background: color-mix(in srgb, var(--accent-color) 16%, transparent);
+  color: var(--accent-color);
+}
+
+.layout-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background: var(--hover-bg);
 }
 
 .view-mode-menu {
@@ -1439,6 +1527,35 @@ onBeforeUnmount(() => {
 .preview-pane {
   border-left: 1px solid var(--border-color);
   background: var(--preview-bg);
+}
+
+/* 居中版式：正文定宽居中，两侧留白 */
+.content-area.layout-center :deep(.vditor-ir),
+.content-area.layout-center :deep(.vditor-reset) {
+  max-width: 980px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box;
+}
+
+.content-area.layout-center :deep(.cm-scroller) {
+  padding-left: max(20px, calc((100% - 980px) / 2));
+  padding-right: max(20px, calc((100% - 980px) / 2));
+  box-sizing: border-box;
+}
+
+.content-area.layout-center .preview-pane :deep(.markdown-body) {
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.content-area.layout-fill :deep(.vditor-ir),
+.content-area.layout-fill :deep(.vditor-reset) {
+  max-width: none;
 }
 
 .collapse-tab {

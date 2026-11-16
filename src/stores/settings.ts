@@ -3,6 +3,7 @@ import { computed, ref, toRaw } from 'vue'
 import {
   AccentTheme,
   AppSettings,
+  ContentLayoutMode,
   DEFAULT_SETTINGS,
   NoteViewPosition,
   RecentNoteEntry,
@@ -31,6 +32,10 @@ function normalizeAccentTheme(value: unknown): AccentTheme {
     return value
   }
   return DEFAULT_SETTINGS.accentTheme
+}
+
+function normalizeContentLayout(value: unknown): ContentLayoutMode {
+  return value === 'center' || value === 'fill' ? value : DEFAULT_SETTINGS.contentLayout
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -80,7 +85,8 @@ export const useSettingsStore = defineStore('settings', () => {
       notePositions: { ...DEFAULT_SETTINGS.notePositions, ...(loadedSettings.notePositions || {}) },
       recentNotes: Array.isArray(loadedSettings.recentNotes)
         ? loadedSettings.recentNotes.slice(0, MAX_RECENT_NOTES)
-        : [...DEFAULT_SETTINGS.recentNotes]
+        : [...DEFAULT_SETTINGS.recentNotes],
+      contentLayout: normalizeContentLayout(loadedSettings.contentLayout)
     }
     systemTheme.value = await window.noteAPI.getSystemTheme()
     applyDomTheme(resolvedTheme.value)
