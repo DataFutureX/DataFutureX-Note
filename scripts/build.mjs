@@ -52,6 +52,8 @@ async function main() {
   }
 
   if (mode === 'full' || mode === 'pack' || mode === 'dir') {
+    // 同步桌面快捷方式 / 托盘 / 安装界面用的立体 Logo
+    await run('node', ['scripts/generate-icon.mjs'])
     // 统一打 dir；Setup 由自研安装器包装，避免 NSIS 临时目录/写入失败
     await run('npx', ['electron-builder', '--win', '--x64', '--dir'])
   }

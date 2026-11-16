@@ -195,7 +195,7 @@ async function onTitleMenuAction(action: MenuAction) {
       await ElMessageBox({
         title: '关于',
         message: h('div', { class: 'about-dialog' }, [
-          h(LogoMark, { class: 'about-dialog-logo', size: 56 }),
+          h(LogoMark, { class: 'about-dialog-logo', size: 72, enhanced: true }),
           h('p', { class: 'about-dialog-name' }, info.name),
           h('p', { class: 'about-dialog-meta' }, `版本 ${info.version}`),
           h('p', { class: 'about-dialog-meta' }, info.copyright)

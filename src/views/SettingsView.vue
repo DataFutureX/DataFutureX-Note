@@ -157,7 +157,7 @@ async function updateStartup(val: 'last-note' | 'default-folder') {
       <section class="about-section">
         <h2>关于</h2>
         <div class="about-brand">
-          <LogoMark class="about-logo" :size="56" />
+          <LogoMark class="about-logo" :size="72" enhanced />
           <div class="about-text">
             <p><strong>{{ appInfo.name }}</strong></p>
             <p>版本 {{ appInfo.version }}</p>
@@ -230,14 +230,16 @@ h2 {
   display: flex;
   align-items: flex-start;
   gap: 16px;
+  overflow: visible;
+}
+
+.about-section {
+  overflow: visible;
 }
 
 .about-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
   flex-shrink: 0;
-  display: block;
+  overflow: visible;
 }
 
 .about-text p {

@@ -34,6 +34,13 @@ function compileStub(outExe) {
   const csc = findCsc()
   const cs = path.join(root, 'scripts', 'dfx-installer-stub.cs')
   const icon = path.join(root, 'resources', 'icon.ico')
+  // 优先用较大 PNG 作为安装向导 Logo；否则回退 icon.png
+  const logoCandidates = [
+    path.join(root, 'resources', 'icon-256.png'),
+    path.join(root, 'resources', 'icon.png'),
+    path.join(root, 'resources', 'icon-48.png')
+  ]
+  const logoPng = logoCandidates.find((p) => fs.existsSync(p))
   const args = [
     '/nologo',
     '/optimize+',
@@ -46,6 +53,7 @@ function compileStub(outExe) {
     `/out:${outExe}`,
   ]
   if (fs.existsSync(icon)) args.push(`/win32icon:${icon}`)
+  if (logoPng) args.push(`/resource:${logoPng},DfxInstaller.Logo.png`)
   args.push(cs)
   const r = spawnSync(csc, args, { cwd: root, encoding: 'utf8' })
   if (r.status !== 0) {
