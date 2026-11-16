@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import FolderTree from '@/components/FolderTree/FolderTree.vue'
 import ChapterOutline from '@/components/ChapterOutline/ChapterOutline.vue'
@@ -58,6 +58,10 @@ const searchBarOpen = ref(false)
 const createMenuOpen = ref(false)
 const sortMenuOpen = ref(false)
 const viewMenuOpen = ref(false)
+const titleEditing = ref(false)
+const titleDraft = ref('')
+const titleInputRef = ref<HTMLInputElement | null>(null)
+const refreshingTree = ref(false)
 
 const sortOptions: { id: SortMode; label: string }[] = [
   { id: 'mtime-desc', label: '修改时间 ↓' },
@@ -341,24 +345,54 @@ async function manualSave() {
   }
 }
 
-async function renameCurrentNote() {
-  const note = library.selectedNote
-  if (!note) return
+async function refreshFolderTree() {
+  if (refreshingTree.value) return
+  refreshingTree.value = true
   try {
-    const { value } = await ElMessageBox.prompt('请输入新的笔记名称', '重命名笔记', {
-      inputValue: note.name,
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
-    })
-    const next = value.trim()
-    if (!next || next === note.name) return
+    await library.refreshTree(true)
+  } catch (e) {
+    ElMessage.error(ipcErrorMessage(e, '刷新目录失败'))
+  } finally {
+    refreshingTree.value = false
+  }
+}
+
+async function startTitleEdit() {
+  const note = library.selectedNote
+  if (!note || titleEditing.value) return
+  titleDraft.value = note.name
+  titleEditing.value = true
+  await nextTick()
+  titleInputRef.value?.focus()
+  titleInputRef.value?.select()
+}
+
+function cancelTitleEdit() {
+  titleEditing.value = false
+  titleDraft.value = ''
+}
+
+async function commitTitleEdit() {
+  if (!titleEditing.value) return
+  const note = library.selectedNote
+  const next = titleDraft.value.trim()
+  titleEditing.value = false
+  if (!note) return
+  if (!next || next === note.name) return
+  try {
     await library.renameNote(note.id, next)
     ElMessage.success('笔记已重命名')
   } catch (e) {
-    if (isDialogCancel(e)) return
     ElMessage.error(ipcErrorMessage(e, '重命名失败'))
   }
 }
+
+watch(
+  () => library.selectedNoteId,
+  () => {
+    if (titleEditing.value) cancelTitleEdit()
+  }
+)
 
 async function changeSort(mode: SortMode) {
   await settingsStore.setSortMode(mode)
@@ -559,7 +593,7 @@ async function handleMenuAction(action: MenuAction) {
       break
     }
     case 'edit:refresh':
-      await library.refreshTree()
+      await refreshFolderTree()
       break
     case 'view:live':
       setViewMode('live')
@@ -630,18 +664,29 @@ onBeforeUnmount(() => {
       >
         <div class="pane-header folder-header">
           <span class="pane-label">目录</span>
-          <div class="sort-menu" @click.stop>
+          <div class="folder-header-actions">
             <button
-              class="btn sort-trigger"
+              class="btn header-icon-btn"
               type="button"
-              :class="{ open: sortMenuOpen }"
-              :title="`排序：${sortLabel}`"
-              aria-label="排序"
-              @click="toggleSortMenu"
+              title="刷新目录"
+              aria-label="刷新目录"
+              :disabled="refreshingTree"
+              @click="refreshFolderTree"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                :class="{ spinning: refreshingTree }"
+              >
                 <path
-                  d="M8 4v14M8 18l-3-3M8 18l3-3M14 6h6M14 12h4M14 18h2"
+                  d="M19.5 12a7.5 7.5 0 1 1-2.1-5.2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+                <path
+                  d="M17.2 3.8v4.2h4.2"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="1.8"
@@ -650,18 +695,39 @@ onBeforeUnmount(() => {
                 />
               </svg>
             </button>
-            <div v-if="sortMenuOpen" class="sort-panel" role="menu">
+            <div class="sort-menu" @click.stop>
               <button
-                v-for="opt in sortOptions"
-                :key="opt.id"
+                class="btn header-icon-btn"
                 type="button"
-                class="sort-item"
-                :class="{ active: settingsStore.settings.sortMode === opt.id }"
-                role="menuitem"
-                @click="pickSort(opt.id)"
+                :class="{ open: sortMenuOpen }"
+                :title="`排序：${sortLabel}`"
+                aria-label="排序"
+                @click="toggleSortMenu"
               >
-                {{ opt.label }}
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M8 4v14M8 18l-3-3M8 18l3-3M14 6h6M14 12h4M14 18h2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </button>
+              <div v-if="sortMenuOpen" class="sort-panel" role="menu">
+                <button
+                  v-for="opt in sortOptions"
+                  :key="opt.id"
+                  type="button"
+                  class="sort-item"
+                  :class="{ active: settingsStore.settings.sortMode === opt.id }"
+                  role="menuitem"
+                  @click="pickSort(opt.id)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -809,12 +875,23 @@ onBeforeUnmount(() => {
 
       <section class="pane content-pane">
         <div class="pane-header content-titlebar">
+          <input
+            v-if="library.selectedNoteId && titleEditing"
+            ref="titleInputRef"
+            v-model="titleDraft"
+            class="note-title-input"
+            maxlength="120"
+            aria-label="修改笔记文件名"
+            @keydown.enter.prevent="commitTitleEdit"
+            @keydown.esc.prevent="cancelTitleEdit"
+            @blur="commitTitleEdit"
+          />
           <button
-            v-if="library.selectedNoteId"
+            v-else-if="library.selectedNoteId"
             type="button"
             class="note-title editable"
-            :title="'双击重命名'"
-            @dblclick="renameCurrentNote"
+            title="点击修改文件名"
+            @click="startTitleEdit"
           >
             {{ library.selectedNote?.name || '未命名' }}
           </button>
@@ -986,13 +1063,20 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.folder-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .sort-menu {
   position: relative;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
-.sort-trigger {
+.header-icon-btn {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -1002,20 +1086,35 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
-.sort-trigger:hover {
+.header-icon-btn:hover:not(:disabled) {
   background: var(--hover-bg);
   color: var(--text-primary);
 }
 
-.sort-trigger.open {
+.header-icon-btn.open {
   border-color: var(--accent-color);
   color: var(--accent-color);
 }
 
-.sort-trigger svg {
+.header-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.header-icon-btn svg {
   width: 14px;
   height: 14px;
   display: block;
+}
+
+.header-icon-btn svg.spinning {
+  animation: refresh-spin 0.8s linear infinite;
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sort-panel {
@@ -1176,10 +1275,26 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
 }
 
 .content-titlebar .note-title.editable:hover {
   color: var(--accent-color);
+}
+
+.content-titlebar .note-title-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--accent-color);
+  border-radius: 4px;
+  padding: 0 8px;
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
 }
 
 .save-status {

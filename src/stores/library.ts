@@ -88,24 +88,32 @@ export const useLibraryStore = defineStore('library', () => {
     return !!root
   }
 
-  async function refreshTree(keepSelection = true) {
-    loading.value = true
-    error.value = null
-    try {
-      tree.value = await window.noteAPI.getFolderTree(settingsStore.settings.sortMode)
-      if (!keepSelection || !selectedFolderId.value) {
-        selectedFolderId.value = tree.value[0]?.id ?? null
-      } else if (!findFolder(tree.value, selectedFolderId.value)) {
-        selectedFolderId.value = tree.value[0]?.id ?? null
+  /** 串行化目录树刷新，避免 watch 连发导致竞态 */
+  let refreshQueue: Promise<void> = Promise.resolve()
+
+  async function refreshTree(keepSelection = true, options: { quiet?: boolean } = {}) {
+    const run = async () => {
+      if (!options.quiet) loading.value = true
+      error.value = null
+      try {
+        tree.value = await window.noteAPI.getFolderTree(settingsStore.settings.sortMode)
+        if (!keepSelection || !selectedFolderId.value) {
+          selectedFolderId.value = tree.value[0]?.id ?? null
+        } else if (!findFolder(tree.value, selectedFolderId.value)) {
+          selectedFolderId.value = tree.value[0]?.id ?? null
+        }
+        if (selectedFolderId.value) {
+          await loadNotes(selectedFolderId.value)
+        }
+      } catch (e) {
+        error.value = (e as { message?: string })?.message || String(e)
+      } finally {
+        if (!options.quiet) loading.value = false
       }
-      if (selectedFolderId.value) {
-        await loadNotes(selectedFolderId.value)
-      }
-    } catch (e) {
-      error.value = (e as { message?: string })?.message || String(e)
-    } finally {
-      loading.value = false
     }
+    const task = refreshQueue.then(run, run)
+    refreshQueue = task.catch(() => undefined)
+    return task
   }
 
   async function loadNotes(folderId: string, options: { force?: boolean } = {}) {

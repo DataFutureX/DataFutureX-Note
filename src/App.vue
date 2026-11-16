@@ -37,10 +37,21 @@ watch(
   }
 )
 
+let watchRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
 async function bindLibraryWatch() {
   unwatch?.()
+  if (watchRefreshTimer) {
+    clearTimeout(watchRefreshTimer)
+    watchRefreshTimer = null
+  }
   unwatch = window.noteAPI.watchLibrary(() => {
-    void libraryStore.refreshTree(true)
+    // 外部文件变更：合并短时间内的多次事件，静默刷新目录树
+    if (watchRefreshTimer) clearTimeout(watchRefreshTimer)
+    watchRefreshTimer = setTimeout(() => {
+      watchRefreshTimer = null
+      void libraryStore.refreshTree(true, { quiet: true })
+    }, 350)
   })
 }
 
@@ -127,6 +138,10 @@ onMounted(async () => {
 onUnmounted(() => {
   unwatch?.()
   unwatchOpenMd?.()
+  if (watchRefreshTimer) {
+    clearTimeout(watchRefreshTimer)
+    watchRefreshTimer = null
+  }
 })
 
 async function onRootReady() {

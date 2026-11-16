@@ -234,7 +234,10 @@ export class FileSystemService {
     if (await pathExists(target)) {
       throw Object.assign(new Error('同名文件夹已存在'), { code: 'NAME_CONFLICT' })
     }
-    await fs.promises.mkdir(target)
+    await withWatchPaused(async () => {
+      await fs.promises.mkdir(target)
+    })
+    notifyLibraryChanged()
     return {
       id: toRelativeId(root, target),
       name: safeName,
@@ -256,7 +259,10 @@ export class FileSystemService {
     if (await pathExists(target)) {
       throw Object.assign(new Error('同名文件夹已存在'), { code: 'NAME_CONFLICT' })
     }
-    await fs.promises.rename(current, target)
+    await withWatchPaused(async () => {
+      await fs.promises.rename(current, target)
+    })
+    notifyLibraryChanged()
     return {
       id: toRelativeId(root, target),
       name: safeName,
@@ -273,7 +279,10 @@ export class FileSystemService {
     }
     const current = this.resolveId(folderId)
     assertInsideRoot(root, current)
-    await fs.promises.rm(current, { recursive: true, force: false })
+    await withWatchPaused(async () => {
+      await fs.promises.rm(current, { recursive: true, force: false })
+    })
+    notifyLibraryChanged()
   }
 
   async createNote(folderId: string, name: string): Promise<Note> {
@@ -334,7 +343,10 @@ export class FileSystemService {
     if (await pathExists(target)) {
       throw Object.assign(new Error('同名笔记已存在'), { code: 'NAME_CONFLICT' })
     }
-    await fs.promises.rename(current, target)
+    await withWatchPaused(async () => {
+      await fs.promises.rename(current, target)
+    })
+    notifyLibraryChanged()
     const stat = await fs.promises.stat(target)
     const folderId = toRelativeId(root, path.dirname(target))
     return {
@@ -349,7 +361,10 @@ export class FileSystemService {
 
   async deleteNote(noteId: string): Promise<void> {
     const full = this.resolveId(noteId)
-    await fs.promises.unlink(full)
+    await withWatchPaused(async () => {
+      await fs.promises.unlink(full)
+    })
+    notifyLibraryChanged()
   }
 
   async moveNote(noteId: string, targetFolderId: string): Promise<Note> {
@@ -373,8 +388,11 @@ export class FileSystemService {
       throw Object.assign(new Error('目标位置已存在同名笔记'), { code: 'NAME_CONFLICT' })
     }
     // 先迁移正文里引用的 ./assets，避免移动后图片裂开
-    await this.copyReferencedAssets(current, path.dirname(current), targetDir)
-    await fs.promises.rename(current, target)
+    await withWatchPaused(async () => {
+      await this.copyReferencedAssets(current, path.dirname(current), targetDir)
+      await fs.promises.rename(current, target)
+    })
+    notifyLibraryChanged()
     const stat = await fs.promises.stat(target)
     const folderId = toRelativeId(root, targetDir)
     return {
@@ -454,7 +472,10 @@ export class FileSystemService {
     if (await pathExists(target)) {
       throw Object.assign(new Error('目标位置已存在同名文件夹'), { code: 'NAME_CONFLICT' })
     }
-    await fs.promises.rename(current, target)
+    await withWatchPaused(async () => {
+      await fs.promises.rename(current, target)
+    })
+    notifyLibraryChanged()
     return {
       id: toRelativeId(root, target),
       name: path.basename(target),
@@ -487,6 +508,7 @@ export class FileSystemService {
     }
     assertInsideRoot(root, target)
     const raw = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data
+    // assets 写入对目录树无影响，且 watch 已忽略 assets；无需 pause/notify
     await fs.promises.writeFile(target, Buffer.from(raw, 'base64'))
     return {
       relativePath: `./assets/${targetName}`,
@@ -507,7 +529,10 @@ export class FileSystemService {
     }
     const target = path.join(dir, candidate)
     assertInsideRoot(root, target)
-    await fs.promises.copyFile(current, target)
+    await withWatchPaused(async () => {
+      await fs.promises.copyFile(current, target)
+    })
+    notifyLibraryChanged()
     const stat = await fs.promises.stat(target)
     return {
       id: toRelativeId(root, target),

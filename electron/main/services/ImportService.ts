@@ -4,6 +4,7 @@ import os from 'node:os'
 import { ConflictStrategy, ImportResult } from '../../../src/types'
 import { FileSystemService } from './FileSystemService'
 import { assertInsideRoot, ensureDir, pathExists } from '../utils/pathSafety'
+import { notifyLibraryChanged, withWatchPaused } from '../utils/libraryWatch'
 
 async function loadAdmZip() {
   const mod = await import('adm-zip')
@@ -81,7 +82,10 @@ export class ImportService {
       }
 
       // 提交到目标目录
-      await this.copyTree(tmpRoot, targetDir, strategy, result, '')
+      await withWatchPaused(async () => {
+        await this.copyTree(tmpRoot, targetDir, strategy, result, '')
+      })
+      notifyLibraryChanged()
     } finally {
       await fs.promises.rm(tmpRoot, { recursive: true, force: true })
     }
