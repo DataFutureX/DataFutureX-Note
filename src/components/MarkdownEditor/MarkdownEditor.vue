@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { EditorState } from '@codemirror/state'
 import {
   EditorView,
@@ -21,6 +21,7 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import { useLibraryStore } from '@/stores/library'
 import { useSettingsStore } from '@/stores/settings'
 import { saveClipboardImageAsMarkdown } from '@/utils/clipboardImage'
+import { applyScrollPosition, readScrollPosition, resolveNoteScrollEl } from '@/utils/notePosition'
 
 const props = defineProps<{ modelValue: string; noteId?: string | null; readonly?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -31,6 +32,76 @@ const library = useLibraryStore()
 let view: EditorView | null = null
 let applying = false
 let lastJumpToken = 0
+let boundScrollEl: HTMLElement | null = null
+let positionSaveTimer: ReturnType<typeof setTimeout> | null = null
+let restoringPosition = false
+let trackedNoteId: string | null = null
+
+function saveCurrentPosition(opts?: { flush?: boolean }) {
+  const noteId = trackedNoteId || props.noteId || null
+  if (!noteId || restoringPosition || !view) return
+  const el = resolveNoteScrollEl(host.value)
+  if (!el) return
+  boundScrollEl = el
+  const scroll = readScrollPosition(el)
+  settingsStore.rememberNotePosition(
+    noteId,
+    {
+      ...scroll,
+      cursorOffset: view.state.selection.main.head
+    },
+    opts
+  )
+}
+
+function scheduleSavePosition() {
+  if (positionSaveTimer) clearTimeout(positionSaveTimer)
+  positionSaveTimer = setTimeout(() => {
+    positionSaveTimer = null
+    saveCurrentPosition()
+  }, 250)
+}
+
+function onScrollCapture() {
+  if (restoringPosition) return
+  scheduleSavePosition()
+}
+
+function bindScrollListener() {
+  const el = resolveNoteScrollEl(host.value)
+  if (!el) return
+  if (boundScrollEl === el) return
+  boundScrollEl?.removeEventListener('scroll', onScrollCapture)
+  boundScrollEl = el
+  boundScrollEl.addEventListener('scroll', onScrollCapture, { passive: true })
+}
+
+function restorePositionForNote(noteId: string | null | undefined) {
+  if (!noteId || !view) return
+  const pos = settingsStore.getNotePosition(noteId)
+  if (!pos) return
+  if (!(pos.scrollTop > 0 || pos.scrollRatio > 0 || (pos.cursorOffset ?? 0) > 0)) return
+  restoringPosition = true
+  const docLen = view.state.doc.length
+  const cursor = Math.min(Math.max(0, pos.cursorOffset ?? 0), docLen)
+  view.dispatch({
+    selection: { anchor: cursor, head: cursor },
+    effects: EditorView.scrollIntoView(cursor, { y: 'center' })
+  })
+  const tryRestore = (attempt: number) => {
+    bindScrollListener()
+    const el = resolveNoteScrollEl(host.value)
+    const ok = applyScrollPosition(el, pos)
+    if (!ok && attempt < 12) {
+      window.setTimeout(() => tryRestore(attempt + 1), 40 + attempt * 30)
+    } else if (attempt < 6) {
+      window.setTimeout(() => tryRestore(attempt + 1), 60)
+    } else {
+      restoringPosition = false
+    }
+  }
+  void nextTick(() => tryRestore(0))
+}
 
 function jumpToLine(line: number) {
   if (!view) return
@@ -248,6 +319,9 @@ function buildExtensions() {
       if (update.docChanged && !applying) {
         emit('update:modelValue', update.state.doc.toString())
       }
+      if ((update.docChanged || update.selectionSet) && !applying && !restoringPosition) {
+        scheduleSavePosition()
+      }
     }),
     EditorState.readOnly.of(!!props.readonly),
     themeExt,
@@ -287,9 +361,23 @@ function createEditor() {
     }),
     parent: host.value
   })
+  trackedNoteId = props.noteId || null
+  bindScrollListener()
+  restorePositionForNote(props.noteId)
 }
 
 onMounted(() => createEditor())
+
+watch(
+  () => props.noteId,
+  (next, prev) => {
+    if (prev && prev !== next) saveCurrentPosition({ flush: true })
+    trackedNoteId = next || null
+    if (view && next) {
+      void nextTick(() => restorePositionForNote(next))
+    }
+  }
+)
 
 watch(
   () => props.modelValue,
@@ -302,6 +390,7 @@ watch(
       changes: { from: 0, to: current.length, insert: val }
     })
     applying = false
+    restorePositionForNote(props.noteId)
   }
 )
 
@@ -317,6 +406,10 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  saveCurrentPosition({ flush: true })
+  boundScrollEl?.removeEventListener('scroll', onScrollCapture)
+  boundScrollEl = null
+  if (positionSaveTimer) clearTimeout(positionSaveTimer)
   view?.destroy()
   view = null
 })

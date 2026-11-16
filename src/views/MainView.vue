@@ -956,7 +956,11 @@ onBeforeUnmount(() => {
             />
           </div>
           <div v-if="library.viewMode === 'preview' || library.viewMode === 'split'" class="preview-pane">
-            <MarkdownPreview :content="library.content" :note-dir="noteDir" />
+            <MarkdownPreview
+              :content="library.content"
+              :note-dir="noteDir"
+              :note-id="library.selectedNoteId"
+            />
           </div>
         </div>
       </section>

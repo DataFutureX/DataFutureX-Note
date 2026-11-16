@@ -363,3 +363,89 @@ select {
 .about-message-box .about-dialog-link:hover {
   text-decoration: underline;
 }
+
+.shortcuts-message-box {
+  width: min(920px, 96vw) !important;
+  max-width: min(920px, 96vw) !important;
+}
+
+.shortcuts-message-box .el-message-box__content {
+  padding-top: 4px;
+}
+
+.shortcuts-message-box .el-message-box__message {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.shortcuts-dialog {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+  text-align: left;
+  width: 100%;
+}
+
+.shortcuts-group-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.shortcuts-row {
+  display: grid;
+  grid-template-columns: minmax(7.5em, max-content) 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.shortcuts-row:last-child {
+  border-bottom: none;
+}
+
+.shortcuts-keys {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--app-bg) 85%, var(--panel-bg));
+  font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.shortcuts-desc {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  text-align: left;
+}
+
+@media (max-width: 640px) {
+  .shortcuts-message-box {
+    width: min(96vw, 480px);
+  }
+
+  .shortcuts-dialog {
+    grid-template-columns: 1fr;
+  }
+}

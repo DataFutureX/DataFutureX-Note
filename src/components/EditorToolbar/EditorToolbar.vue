@@ -88,16 +88,10 @@ function run(id: FormatCommand) {
         @mousedown.prevent
         @click="run(item.id)"
       >
-        <!-- heading -->
-        <svg v-if="item.id === 'heading1'" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 5v14h2.2v-5.6H11V19h2.2V5H11v5.2H6.2V5H4zm13.2 6.2V19H19V7.8c-.7.6-1.6 1.1-2.6 1.4v2z" />
-        </svg>
-        <svg v-else-if="item.id === 'heading2'" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3.5 5v14h2.1v-5.6h4.5V19h2.1V5H10.1v5.2H5.6V5H3.5zm10.8 8.4c0-2.2 1.7-3.5 4.1-3.5 1.2 0 2.2.3 3 .9l-1 1.5c-.5-.4-1.2-.7-2-.7-1.1 0-1.8.6-1.8 1.5 0 .9.7 1.4 2.3 2.1 2 .9 3.2 1.8 3.2 3.7 0 2.3-1.8 3.7-4.5 3.7-1.5 0-2.8-.4-3.8-1.2l1.1-1.6c.7.6 1.6.9 2.6.9 1.2 0 2-.6 2-1.5 0-.9-.7-1.4-2.4-2.2-1.9-.8-3.1-1.8-3.1-3.6z" />
-        </svg>
-        <svg v-else-if="item.id === 'heading3'" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3.5 5v14h2.1v-5.6h4.5V19h2.1V5H10.1v5.2H5.6V5H3.5zm11.2 1.8h5.8v1.8h-3.4l2.1 2.1c.7-.2 1.4-.3 2-.3 2.3 0 3.8 1.4 3.8 3.5S23.5 17.6 21 17.6c-1.4 0-2.6-.4-3.5-1.2l1.1-1.6c.6.5 1.4.8 2.3.8 1.1 0 1.8-.6 1.8-1.5s-.7-1.5-1.9-1.5c-.7 0-1.4.2-2.1.6l-1.3-1.3 2.8-2.8h-4.7V6.8z" />
-        </svg>
+        <!-- heading：统一文字图标，避免小尺寸 SVG 数字糊成一团 -->
+        <span v-if="item.id === 'heading1'" class="tb-text">H1</span>
+        <span v-else-if="item.id === 'heading2'" class="tb-text">H2</span>
+        <span v-else-if="item.id === 'heading3'" class="tb-text">H3</span>
         <span v-else-if="item.id === 'heading4'" class="tb-text">H4</span>
         <span v-else-if="item.id === 'heading5'" class="tb-text">H5</span>
         <!-- style -->
@@ -200,10 +194,11 @@ function run(id: FormatCommand) {
 }
 
 .tb-text {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1;
+  font-family: var(--font-mono, ui-monospace, Consolas, monospace);
 }
 
 .tb-btn:hover:not(:disabled) {

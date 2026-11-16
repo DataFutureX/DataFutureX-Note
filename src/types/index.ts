@@ -73,6 +73,24 @@ export interface TrashContentNode {
   relativePath: string
 }
 
+/** 笔记阅读/编辑位置（按笔记 id 记忆） */
+export interface NoteViewPosition {
+  scrollTop: number
+  /** 0~1，内容高度变化时比绝对 scrollTop 更稳 */
+  scrollRatio: number
+  /** 源码模式光标偏移；即时渲染可用近似字符偏移 */
+  cursorOffset?: number
+  updatedAt: number
+}
+
+/** 最近打开的笔记（托盘快捷入口） */
+export interface RecentNoteEntry {
+  id: string
+  name: string
+  folderId: string
+  openedAt: number
+}
+
 export interface AppSettings {
   rootDirectory: string | null
   theme: ThemePreference
@@ -97,6 +115,10 @@ export interface AppSettings {
     folderCollapsed: boolean
     noteCollapsed: boolean
   }
+  /** 各笔记上次阅读/编辑位置 */
+  notePositions: Record<string, NoteViewPosition>
+  /** 最近打开的笔记（最多 10 条） */
+  recentNotes: RecentNoteEntry[]
 }
 
 export interface BackupManifestEntry {
@@ -155,6 +177,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastFolderId: null,
   defaultBackupDir: null,
   windowBounds: null,
+  notePositions: {},
+  recentNotes: [],
   panelLayout: {
     folderWidth: 220,
     noteWidth: 300,
@@ -282,6 +306,8 @@ export interface NoteAPI {
   consumeOpenMarkdownRequest(): Promise<OpenMarkdownRequest | null>
   /** 运行中再次用本程序打开 .md 时推送 */
   onOpenMarkdownFile(callback: (req: OpenMarkdownRequest) => void): () => void
+  /** 托盘「最近笔记」快捷打开 */
+  onOpenNoteById(callback: (req: { noteId: string; folderId?: string | null }) => void): () => void
 
   saveRecoveryDraft(noteId: string, content: string): Promise<void>
   loadRecoveryDraft(noteId: string): Promise<string | null>

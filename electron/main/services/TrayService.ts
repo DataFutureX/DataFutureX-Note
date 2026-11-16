@@ -136,11 +136,26 @@ Write-Output ("matched=" + $n)
   }
 }
 
+export type TrayRecentNote = {
+  id: string
+  name: string
+  folderId?: string
+}
+
+export type TrayMenuActions = {
+  showMainWindow: () => void
+  openNewWindow: () => void
+  openRecentNote: (note: TrayRecentNote) => void
+  getRecentNotes: () => TrayRecentNote[]
+}
+
 export class TrayService {
   private tray: Tray | null = null
   private quitting = false
   private balloonShown = false
   private creating = false
+  private menuActions: TrayMenuActions | null = null
+  private getMainWindow: (() => BrowserWindow | null) | null = null
 
   isQuitting(): boolean {
     return this.quitting
@@ -152,6 +167,81 @@ export class TrayService {
 
   markQuit(): void {
     this.quitting = true
+  }
+
+  setMenuActions(actions: TrayMenuActions): void {
+    this.menuActions = actions
+    this.refreshContextMenu()
+  }
+
+  private truncateLabel(text: string, max = 36): string {
+    const t = (text || '').trim() || '未命名笔记'
+    if (t.length <= max) return t
+    return `${t.slice(0, max - 1)}…`
+  }
+
+  private buildContextMenu(): Menu {
+    const recent = this.menuActions?.getRecentNotes?.() || []
+    const items: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: '显示主窗口',
+        click: () => this.menuActions?.showMainWindow()
+      },
+      {
+        label: '打开新窗口',
+        click: () => this.menuActions?.openNewWindow()
+      },
+      { type: 'separator' },
+      {
+        label: '最近打开的笔记',
+        enabled: false
+      }
+    ]
+
+    if (recent.length > 0) {
+      for (const note of recent) {
+        items.push({
+          label: `  ${this.truncateLabel(note.name)}`,
+          click: () => this.menuActions?.openRecentNote(note)
+        })
+      }
+    } else {
+      items.push({ label: '  （暂无）', enabled: false })
+    }
+
+    items.push(
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          this.markQuit()
+          app.quit()
+        }
+      }
+    )
+
+    return Menu.buildFromTemplate(items)
+  }
+
+  refreshContextMenu(): void {
+    if (!this.tray || this.tray.isDestroyed()) return
+    try {
+      this.tray.setContextMenu(this.buildContextMenu())
+    } catch (err) {
+      logTray('refreshContextMenu failed', String(err))
+    }
+  }
+
+  /** 右键前即时重建，避免菜单缓存导致最近列表为空 */
+  private popupFreshMenu(): void {
+    if (!this.tray || this.tray.isDestroyed()) return
+    try {
+      const menu = this.buildContextMenu()
+      this.tray.setContextMenu(menu)
+      this.tray.popUpContextMenu(menu)
+    } catch (err) {
+      logTray('popupFreshMenu failed', String(err))
+    }
   }
 
   /**
@@ -225,6 +315,7 @@ export class TrayService {
     if (this.tray && !this.tray.isDestroyed()) return this.tray
     if (this.creating) return this.tray
     this.creating = true
+    this.getMainWindow = getMainWindow
     try {
       if (!app.isReady()) {
         logTray('app not ready')
@@ -264,24 +355,20 @@ export class TrayService {
       // 不用 GUID：开发态共用未签名 electron.exe，GUID 极易导致「对象有了但系统托盘不注册」
       const tray = new Tray(trayImage)
       tray.setToolTip('DataFutureX Note')
-      tray.setContextMenu(
-        Menu.buildFromTemplate([
-          {
-            label: '显示主窗口',
-            click: () => this.showWindow(getMainWindow())
-          },
-          { type: 'separator' },
-          {
-            label: '退出',
-            click: () => {
-              this.markQuit()
-              app.quit()
-            }
-          }
-        ])
-      )
-      tray.on('double-click', () => this.showWindow(getMainWindow()))
-      tray.on('click', () => this.showWindow(getMainWindow()))
+      // Windows：右键时即时 rebuild，避免 setContextMenu 缓存导致「最近笔记」空白
+      if (process.platform === 'win32') {
+        tray.on('right-click', () => this.popupFreshMenu())
+      } else {
+        tray.setContextMenu(this.buildContextMenu())
+      }
+      tray.on('double-click', () => {
+        if (this.menuActions?.showMainWindow) this.menuActions.showMainWindow()
+        else this.showWindow(getMainWindow())
+      })
+      tray.on('click', () => {
+        if (this.menuActions?.showMainWindow) this.menuActions.showMainWindow()
+        else this.showWindow(getMainWindow())
+      })
 
       try {
         tray.setImage(trayImage)

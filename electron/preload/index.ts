@@ -65,6 +65,14 @@ const noteAPI: NoteAPI = {
     ipcRenderer.on('open-markdown-file', handler)
     return () => ipcRenderer.removeListener('open-markdown-file', handler)
   },
+  onOpenNoteById: (callback: (req: { noteId: string; folderId?: string | null }) => void) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      req: { noteId: string; folderId?: string | null }
+    ) => callback(req)
+    ipcRenderer.on('open-note-by-id', handler)
+    return () => ipcRenderer.removeListener('open-note-by-id', handler)
+  },
 
   saveRecoveryDraft: (noteId, content) => ipcRenderer.invoke('saveRecoveryDraft', noteId, content),
   loadRecoveryDraft: (noteId) => ipcRenderer.invoke('loadRecoveryDraft', noteId),

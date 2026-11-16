@@ -47,9 +47,17 @@ export const useLibraryStore = defineStore('library', () => {
   let jumpToken = 0
   let recoveryTimer: ReturnType<typeof setTimeout> | null = null
   let settingsPersistTimer: ReturnType<typeof setTimeout> | null = null
-  let pendingSettings: { lastNoteId?: string | null; lastFolderId?: string | null } = {}
+  let pendingSettings: {
+    lastNoteId?: string | null
+    lastFolderId?: string | null
+    recentNotes?: import('@/types').RecentNoteEntry[]
+  } = {}
 
-  function scheduleSettingsPersist(partial: { lastNoteId?: string | null; lastFolderId?: string | null }) {
+  function scheduleSettingsPersist(partial: {
+    lastNoteId?: string | null
+    lastFolderId?: string | null
+    recentNotes?: import('@/types').RecentNoteEntry[]
+  }) {
     pendingSettings = { ...pendingSettings, ...partial }
     if (settingsPersistTimer) clearTimeout(settingsPersistTimer)
     settingsPersistTimer = setTimeout(() => {
@@ -172,10 +180,19 @@ export const useLibraryStore = defineStore('library', () => {
       notes.value.find((n) => n.id === noteId) || findNoteInTree(tree.value, noteId)
     noteMtime.value = note?.mtime ?? null
     if (note) selectedFolderId.value = note.folderId
+    const folderId = note?.folderId ?? selectedFolderId.value
+    const recentNotes = settingsStore.buildRecentNotes({
+      id: noteId,
+      name: note?.name || noteId.split(/[/\\]/).pop() || noteId,
+      folderId: folderId || '.'
+    })
     scheduleSettingsPersist({
       lastNoteId: noteId,
-      lastFolderId: note?.folderId ?? selectedFolderId.value
+      lastFolderId: folderId,
+      recentNotes
     })
+    // 托盘菜单读主进程 settings，最近列表需立刻落盘，不能只靠防抖
+    void settingsStore.flushRecentNotes(recentNotes)
     // 恢复草稿移出关键路径
     void (async () => {
       try {

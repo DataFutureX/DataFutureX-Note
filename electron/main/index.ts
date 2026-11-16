@@ -81,8 +81,9 @@ async function queueOpenMarkdown(filePath: string): Promise<OpenMarkdownRequest 
 }
 
 function sendOpenMarkdown(req: OpenMarkdownRequest): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  mainWindow.webContents.send('open-markdown-file', req)
+  const win = getAliveMainWindow()
+  if (!win || win.isDestroyed()) return
+  win.webContents.send('open-markdown-file', req)
 }
 const fsService = new FileSystemService(() => settings.getRootDirectory())
 const trashService = new TrashService(fsService)
@@ -125,23 +126,47 @@ function resolveWindowIcon(): string | undefined {
   return undefined
 }
 
-function createWindow(): void {
+function getAliveMainWindow(): BrowserWindow | null {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  const first = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+  mainWindow = first || null
+  return mainWindow
+}
+
+function createWindow(opts?: { secondary?: boolean; openNoteId?: string; openFolderId?: string | null }): BrowserWindow {
+  const secondary = !!opts?.secondary
   const bounds = settings.get().windowBounds
   const resolved = themeService.resolve(settings.get().theme)
   const chrome = resolveChromeColors(resolved, settings.get().accentTheme)
   const icon = resolveWindowIcon()
   // 避免上次异常坐标把窗口开到屏幕外
   const useBounds =
+    !secondary &&
     bounds &&
     typeof bounds.width === 'number' &&
     typeof bounds.height === 'number' &&
     bounds.width >= 800 &&
     bounds.height >= 500
-  mainWindow = new BrowserWindow({
+
+  let x = useBounds ? bounds!.x : undefined
+  let y = useBounds ? bounds!.y : undefined
+  if (secondary) {
+    const anchor = getAliveMainWindow()
+    if (anchor && !anchor.isDestroyed()) {
+      const b = anchor.getBounds()
+      x = b.x + 32
+      y = b.y + 32
+    } else if (bounds) {
+      x = (bounds.x || 80) + 32
+      y = (bounds.y || 80) + 32
+    }
+  }
+
+  const win = new BrowserWindow({
     width: useBounds ? bounds!.width : 1280,
     height: useBounds ? bounds!.height : 800,
-    x: useBounds ? bounds!.x : undefined,
-    y: useBounds ? bounds!.y : undefined,
+    x,
+    y,
     minWidth: 1000,
     minHeight: 650,
     title: viewerMode ? 'DataFutureX Note — 查看' : 'DataFutureX Note',
@@ -164,59 +189,134 @@ function createWindow(): void {
     }
   })
 
-  const reveal = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
+  if (!secondary || !mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = win
   }
-  mainWindow.once('ready-to-show', () => {
+
+  const reveal = () => {
+    if (win.isDestroyed()) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  }
+  win.once('ready-to-show', () => {
     reveal()
     // 主实例：窗口显示后再建托盘，避免拖慢首屏
-    if (!viewerMode) {
+    if (!viewerMode && !secondary) {
       setTimeout(() => {
         try {
-          trayService.ensure(() => mainWindow, 2)
+          trayService.ensure(() => getAliveMainWindow(), 2)
+          wireTrayMenuActions()
         } catch (err) {
           console.warn('[DataFutureX-Note] tray init failed:', err)
         }
       }, 800)
     }
+    if (opts?.openNoteId) {
+      win.webContents.send('open-note-by-id', {
+        noteId: opts.openNoteId,
+        folderId: opts.openFolderId ?? null
+      })
+    }
   })
   // 兜底：加载异常时也尽量把窗口拉起来
   setTimeout(reveal, 2500)
 
-  // 关闭按钮：主实例有托盘则值守隐藏；查看进程直接关闭
-  mainWindow.on('close', (event) => {
-    if (!mainWindow) return
-    const b = mainWindow.getBounds()
+  // 关闭：仅最后一扇主窗在托盘值守时隐藏；其它窗口直接关闭
+  win.on('close', (event) => {
+    if (win.isDestroyed()) return
+    const b = win.getBounds()
     void settings.update({ windowBounds: b })
     if (viewerMode) return
-    if (!trayService.isQuitting() && trayService.hasTray()) {
+    const others = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && w !== win)
+    if (!trayService.isQuitting() && trayService.hasTray() && others.length === 0) {
       event.preventDefault()
-      trayService.hideToTray(mainWindow)
+      trayService.hideToTray(win)
+      return
+    }
+    if (mainWindow === win) {
+      mainWindow = others[0] || null
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) {
       void shell.openExternal(url)
     }
     return { action: 'deny' }
   })
 
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url !== mainWindow?.webContents.getURL()) {
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== win.webContents.getURL()) {
       event.preventDefault()
       if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
     }
   })
 
   if (VITE_DEV_SERVER_URL) {
-    void mainWindow.loadURL(VITE_DEV_SERVER_URL)
+    void win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    void mainWindow.loadFile(path.join(process.env.DIST!, 'index.html'))
+    void win.loadFile(path.join(process.env.DIST!, 'index.html'))
   }
+  return win
+}
+
+function showOrCreateMainWindow(): BrowserWindow {
+  const win = getAliveMainWindow()
+  if (win) {
+    trayService.showWindow(win)
+    return win
+  }
+  return createWindow()
+}
+
+function openNoteFromTray(note: { id: string; name: string; folderId?: string }): void {
+  const win = showOrCreateMainWindow()
+  const payload = { noteId: note.id, folderId: note.folderId ?? null }
+  const send = () => {
+    if (win.isDestroyed()) return
+    win.webContents.send('open-note-by-id', payload)
+  }
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', send)
+  } else {
+    // 稍延后，避免窗口刚从托盘恢复时渲染进程未就绪
+    setTimeout(send, 50)
+  }
+}
+
+function wireTrayMenuActions(): void {
+  trayService.setMenuActions({
+    showMainWindow: () => {
+      showOrCreateMainWindow()
+    },
+    openNewWindow: () => {
+      createWindow({ secondary: true })
+    },
+    openRecentNote: (note) => openNoteFromTray(note),
+    getRecentNotes: () => {
+      const s = settings.get()
+      let list = (s.recentNotes || []).filter((n) => n && n.id)
+      // 兜底：列表为空但有 lastNoteId 时仍展示
+      if (!list.length && s.lastNoteId) {
+        const name =
+          s.lastNoteId.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || s.lastNoteId
+        list = [
+          {
+            id: s.lastNoteId,
+            name,
+            folderId: s.lastFolderId || '.',
+            openedAt: Date.now()
+          }
+        ]
+      }
+      return list.map((n) => ({
+        id: n.id,
+        name: n.name || n.id,
+        folderId: n.folderId
+      }))
+    }
+  })
 }
 
 function watchLibrary(): void {
@@ -241,8 +341,7 @@ if (!viewerMode && !gotLock) {
         spawnMarkdownViewer(md)
         return
       }
-      if (!mainWindow || mainWindow.isDestroyed()) createWindow()
-      else trayService.showWindow(mainWindow)
+      showOrCreateMainWindow()
     })()
   })
 }
@@ -261,8 +360,7 @@ async function openMarkdownPath(filePath: string, opts?: { focusMain?: boolean }
     pendingOpenMarkdown = null
   }
   if (opts?.focusMain) {
-    if (!mainWindow || mainWindow.isDestroyed()) createWindow()
-    else if (!viewerMode) trayService.showWindow(mainWindow)
+    showOrCreateMainWindow()
   }
 }
 
@@ -335,7 +433,8 @@ app.whenReady().then(async () => {
     themeService,
     recovery,
     trashService,
-    writableUserData
+    writableUserData,
+    onSettingsUpdated: () => trayService.refreshContextMenu()
   })
 
   ipcMain.handle('windowMinimize', async () => {
@@ -348,14 +447,14 @@ app.whenReady().then(async () => {
     else win.maximize()
   })
   ipcMain.handle('windowClose', async () => {
-    const win = BrowserWindow.getFocusedWindow() || mainWindow
+    const win = BrowserWindow.getFocusedWindow() || getAliveMainWindow()
     if (!win) return
     const b = win.getBounds()
     void settings.update({ windowBounds: b })
-    if (!viewerMode && trayService.hasTray()) {
+    const others = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && w !== win)
+    if (!viewerMode && trayService.hasTray() && others.length === 0) {
       trayService.hideToTray(win)
     } else {
-      trayService.markQuit()
       win.close()
     }
   })
@@ -368,15 +467,11 @@ app.whenReady().then(async () => {
 
   // 先出窗，再处理后台启动任务（打开 MD / 可写探测 / 托盘）
   createWindow()
+  wireTrayMenuActions()
   watchLibrary()
 
   app.on('activate', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) createWindow()
-    else if (!viewerMode) trayService.showWindow(mainWindow)
-    else {
-      mainWindow.show()
-      mainWindow.focus()
-    }
+    showOrCreateMainWindow()
   })
 
   void (async () => {

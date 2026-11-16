@@ -99,6 +99,7 @@ export function registerIpc(deps: {
   recovery: RecoveryService
   trashService: TrashService
   writableUserData: string
+  onSettingsUpdated?: () => void
 }): void {
   const {
     settings,
@@ -113,7 +114,8 @@ export function registerIpc(deps: {
     themeService,
     recovery,
     trashService,
-    writableUserData
+    writableUserData,
+    onSettingsUpdated
   } = deps
 
   ipcMain.handle('selectRootDirectory', async () =>
@@ -274,6 +276,11 @@ export function registerIpc(deps: {
         themeService.applyPreference(partial.theme as ThemePreference)
       }
       const next = await settings.update(partial as never)
+      try {
+        onSettingsUpdated?.()
+      } catch {
+        // ignore
+      }
       if (typeof partial.theme === 'string' || typeof partial.accentTheme === 'string') {
         const effective = themeService.resolve(next.theme)
         const chrome = resolveChromeColors(effective, next.accentTheme as AccentTheme)

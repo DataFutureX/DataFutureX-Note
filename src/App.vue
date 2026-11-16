@@ -22,6 +22,7 @@ const hasRoot = ref(false)
 const showSettings = ref(false)
 let unwatch: (() => void) | null = null
 let unwatchOpenMd: (() => void) | null = null
+let unwatchOpenNote: (() => void) | null = null
 
 const currentView = computed(() => {
   if (!ready.value) return 'loading'
@@ -90,6 +91,28 @@ async function applyOpenMarkdown(req: OpenMarkdownRequest) {
   await bindLibraryWatch()
 }
 
+/** 托盘「最近笔记」快捷打开 */
+async function applyOpenNoteById(req: { noteId: string; folderId?: string | null }) {
+  showSettings.value = false
+  hasRoot.value = await libraryStore.ensureRoot()
+  if (!hasRoot.value) return
+  await libraryStore.refreshTree(false)
+  const folderId = req.folderId || null
+  if (folderId) {
+    try {
+      await libraryStore.loadNotes(folderId)
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    await libraryStore.selectNote(req.noteId, true)
+  } catch (e) {
+    console.warn('[open-note-by-id] selectNote failed:', e)
+  }
+  await bindLibraryWatch()
+}
+
 /** 后台加载库与上次笔记，不阻塞首屏出壳 */
 async function bootLibraryInBackground() {
   libraryBooting.value = true
@@ -125,10 +148,21 @@ async function bootLibraryInBackground() {
   }
 }
 
+function onFlushPositions() {
+  void settingsStore.flushNotePositions()
+}
+
 onMounted(async () => {
   await settingsStore.init()
   unwatchOpenMd = window.noteAPI.onOpenMarkdownFile((req) => {
     void applyOpenMarkdown(req)
+  })
+  unwatchOpenNote = window.noteAPI.onOpenNoteById((req) => {
+    void applyOpenNoteById(req)
+  })
+  window.addEventListener('beforeunload', onFlushPositions)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') onFlushPositions()
   })
   // 先出壳，再后台灌库
   ready.value = true
@@ -136,8 +170,11 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  onFlushPositions()
+  window.removeEventListener('beforeunload', onFlushPositions)
   unwatch?.()
   unwatchOpenMd?.()
+  unwatchOpenNote?.()
   if (watchRefreshTimer) {
     clearTimeout(watchRefreshTimer)
     watchRefreshTimer = null
@@ -199,19 +236,78 @@ async function onTitleMenuAction(action: MenuAction) {
     case 'view:accent-mono':
       await settingsStore.setAccentTheme('mono')
       return
-    case 'help:shortcuts':
-      await ElMessageBox.alert(
-        [
-          'Ctrl+S  保存',
-          'Ctrl+N  新建笔记',
-          'Ctrl+F  搜索',
-          'Ctrl+1～5  一级～五级标题',
-          'Ctrl+B / I / D  加粗 / 斜体 / 删除线'
-        ].join('\n'),
-        '快捷键说明',
-        { confirmButtonText: '知道了' }
-      )
+    case 'help:shortcuts': {
+      const groups: { title: string; items: { keys: string; desc: string }[] }[] = [
+        {
+          title: '通用',
+          items: [
+            { keys: 'Ctrl+S', desc: '保存当前笔记' },
+            { keys: 'Ctrl+N', desc: '新建笔记' },
+            { keys: 'Ctrl+F', desc: '搜索笔记' },
+            { keys: 'Alt+F4', desc: '退出应用' }
+          ]
+        },
+        {
+          title: '编辑格式',
+          items: [
+            { keys: 'Ctrl+B', desc: '加粗' },
+            { keys: 'Ctrl+I', desc: '斜体' },
+            { keys: 'Ctrl+D', desc: '删除线' },
+            { keys: 'Ctrl+E', desc: '行内代码' },
+            { keys: 'Ctrl+K', desc: '插入链接' },
+            { keys: 'Ctrl+Shift+K', desc: '插入代码块' },
+            { keys: 'Ctrl+Shift+I', desc: '插入图片占位' },
+            { keys: 'Ctrl+V', desc: '粘贴（优先粘贴截图）' }
+          ]
+        },
+        {
+          title: '标题与列表',
+          items: [
+            { keys: 'Ctrl+1', desc: '一级标题' },
+            { keys: 'Ctrl+2', desc: '二级标题' },
+            { keys: 'Ctrl+3', desc: '三级标题' },
+            { keys: 'Ctrl+4', desc: '四级标题' },
+            { keys: 'Ctrl+5', desc: '五级标题' },
+            { keys: 'Ctrl+Shift+Q', desc: '引用' },
+            { keys: 'Ctrl+Shift+L', desc: '无序列表' },
+            { keys: 'Ctrl+Shift+O', desc: '有序列表' }
+          ]
+        },
+        {
+          title: '撤销重做',
+          items: [
+            { keys: 'Ctrl+Z', desc: '撤销' },
+            { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: '重做' }
+          ]
+        }
+      ]
+      await ElMessageBox({
+        title: '快捷键说明',
+        message: h(
+          'div',
+          { class: 'shortcuts-dialog' },
+          groups.map((g) =>
+            h('section', { class: 'shortcuts-group' }, [
+              h('h3', { class: 'shortcuts-group-title' }, g.title),
+              h(
+                'ul',
+                { class: 'shortcuts-list' },
+                g.items.map((item) =>
+                  h('li', { class: 'shortcuts-row' }, [
+                    h('kbd', { class: 'shortcuts-keys' }, item.keys),
+                    h('span', { class: 'shortcuts-desc' }, item.desc)
+                  ])
+                )
+              )
+            ])
+          )
+        ),
+        confirmButtonText: '知道了',
+        customClass: 'shortcuts-message-box',
+        dangerouslyUseHTMLString: false
+      })
       return
+    }
     case 'help:about': {
       const info = await window.noteAPI.getAppInfo()
       const homepage = info.homepage || 'https://www.datafuturex.cn/'

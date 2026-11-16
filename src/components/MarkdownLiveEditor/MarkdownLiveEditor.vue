@@ -8,6 +8,7 @@ import {
   saveClipboardImageAsMarkdown,
   screenshotFileName
 } from '@/utils/clipboardImage'
+import { applyScrollPosition, readScrollPosition, resolveNoteScrollEl } from '@/utils/notePosition'
 
 const props = defineProps<{
   modelValue: string
@@ -28,6 +29,10 @@ let VditorCtor: typeof VditorType | null = null
 let applying = false
 let ready = false
 let lastJumpToken = 0
+let boundScrollEl: HTMLElement | null = null
+let positionSaveTimer: ReturnType<typeof setTimeout> | null = null
+let restoringPosition = false
+let trackedNoteId: string | null = null
 
 async function ensureVditor() {
   if (VditorCtor) return VditorCtor
@@ -35,6 +40,108 @@ async function ensureVditor() {
   await import('vditor/dist/index.css')
   VditorCtor = mod.default
   return VditorCtor
+}
+
+function captureCursorOffset(): number | undefined {
+  try {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !host.value) return undefined
+    const range = sel.getRangeAt(0)
+    if (!host.value.contains(range.startContainer)) return undefined
+    const pre = range.cloneRange()
+    pre.selectNodeContents(host.value)
+    pre.setEnd(range.startContainer, range.startOffset)
+    return pre.toString().length
+  } catch {
+    return undefined
+  }
+}
+
+function restoreCursorOffset(offset: number | undefined) {
+  if (offset == null || !host.value || offset < 0) return
+  try {
+    const walker = document.createTreeWalker(host.value, NodeFilter.SHOW_TEXT)
+    let remaining = offset
+    let node: Text | null = null
+    while ((node = walker.nextNode() as Text | null)) {
+      const len = node.data.length
+      if (remaining <= len) {
+        const range = document.createRange()
+        range.setStart(node, Math.max(0, remaining))
+        range.collapse(true)
+        const sel = window.getSelection()
+        sel?.removeAllRanges()
+        sel?.addRange(range)
+        return
+      }
+      remaining -= len
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function saveCurrentPosition(opts?: { flush?: boolean }) {
+  const noteId = trackedNoteId || props.noteId || null
+  if (!noteId || restoringPosition) return
+  const el = resolveNoteScrollEl(host.value)
+  if (!el) return
+  boundScrollEl = el
+  const scroll = readScrollPosition(el)
+  settingsStore.rememberNotePosition(
+    noteId,
+    {
+      ...scroll,
+      cursorOffset: captureCursorOffset()
+    },
+    opts
+  )
+}
+
+function scheduleSavePosition() {
+  if (positionSaveTimer) clearTimeout(positionSaveTimer)
+  positionSaveTimer = setTimeout(() => {
+    positionSaveTimer = null
+    saveCurrentPosition()
+  }, 250)
+}
+
+function onScrollCapture() {
+  if (restoringPosition) return
+  scheduleSavePosition()
+}
+
+function bindScrollListener() {
+  const el = resolveNoteScrollEl(host.value)
+  if (!el) return
+  if (boundScrollEl === el) return
+  boundScrollEl?.removeEventListener('scroll', onScrollCapture)
+  boundScrollEl = el
+  boundScrollEl.addEventListener('scroll', onScrollCapture, { passive: true })
+}
+
+function restorePositionForNote(noteId: string | null | undefined) {
+  if (!noteId || !host.value) return
+  const pos = settingsStore.getNotePosition(noteId)
+  if (!pos) return
+  if (!(pos.scrollTop > 0 || pos.scrollRatio > 0 || (pos.cursorOffset ?? 0) > 0)) return
+  restoringPosition = true
+  const tryRestore = (attempt: number) => {
+    bindScrollListener()
+    const el = resolveNoteScrollEl(host.value)
+    const ok = applyScrollPosition(el, pos)
+    if (attempt === 0 || attempt === 4 || attempt === 10) restoreCursorOffset(pos.cursorOffset)
+    if (!ok && attempt < 12) {
+      window.setTimeout(() => tryRestore(attempt + 1), 50 + attempt * 40)
+    } else if (attempt < 12 && attempt < 6) {
+      // 内容可能还在增高，多试几次稳住位置
+      window.setTimeout(() => tryRestore(attempt + 1), 80)
+    } else {
+      restoreCursorOffset(pos.cursorOffset)
+      restoringPosition = false
+    }
+  }
+  void nextTick(() => tryRestore(0))
 }
 
 function jumpToHeading(line: number, text: string) {
@@ -211,15 +318,20 @@ async function createEditor() {
       host.value?.addEventListener('paste', onPasteCapture, true)
       ensureImageObserver()
       scheduleRewriteImages()
+      trackedNoteId = props.noteId || null
+      bindScrollListener()
+      restorePositionForNote(props.noteId)
     },
     input(value) {
       if (applying) return
       emit('update:modelValue', value)
       scheduleRewriteImages()
+      scheduleSavePosition()
     },
     blur(value) {
       if (applying) return
       emit('update:modelValue', value)
+      saveCurrentPosition()
     }
   })
 }
@@ -274,6 +386,17 @@ onMounted(async () => {
 })
 
 watch(
+  () => props.noteId,
+  (next, prev) => {
+    if (prev && prev !== next) saveCurrentPosition({ flush: true })
+    trackedNoteId = next || null
+    if (ready && next) {
+      void nextTick(() => restorePositionForNote(next))
+    }
+  }
+)
+
+watch(
   () => props.modelValue,
   (val) => {
     if (!editor || !ready) return
@@ -282,6 +405,7 @@ watch(
     editor.setValue(val || '', true)
     applying = false
     scheduleRewriteImages()
+    restorePositionForNote(props.noteId)
   }
 )
 
@@ -326,10 +450,14 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  saveCurrentPosition({ flush: true })
   host.value?.removeEventListener('paste', onPasteCapture, true)
+  boundScrollEl?.removeEventListener('scroll', onScrollCapture)
+  boundScrollEl = null
   imageObserver?.disconnect()
   imageObserver = null
   if (rewriteTimer) clearTimeout(rewriteTimer)
+  if (positionSaveTimer) clearTimeout(positionSaveTimer)
   editor?.destroy()
   editor = null
 })
@@ -426,6 +554,9 @@ defineExpose({
 
 :deep(.vditor-content) {
   background: var(--editor-bg);
+  flex: 1;
+  min-height: 0;
+  overflow: auto !important;
 }
 
 :deep(.vditor-ir),

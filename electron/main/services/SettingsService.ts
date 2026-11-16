@@ -20,7 +20,12 @@ function normalizeAccentTheme(value: unknown): AccentTheme {
 
 export class SettingsService {
   private settingsPath: string
-  private settings: AppSettings = { ...DEFAULT_SETTINGS, panelLayout: { ...DEFAULT_SETTINGS.panelLayout } }
+  private settings: AppSettings = {
+    ...DEFAULT_SETTINGS,
+    panelLayout: { ...DEFAULT_SETTINGS.panelLayout },
+    notePositions: { ...DEFAULT_SETTINGS.notePositions },
+    recentNotes: [...DEFAULT_SETTINGS.recentNotes]
+  }
 
   constructor() {
     this.settingsPath = path.join(app.getPath('userData'), 'settings.json')
@@ -37,12 +42,21 @@ export class SettingsService {
         panelLayout: {
           ...DEFAULT_SETTINGS.panelLayout,
           ...(parsed.panelLayout || {})
-        }
+        },
+        notePositions: {
+          ...DEFAULT_SETTINGS.notePositions,
+          ...(parsed.notePositions || {})
+        },
+        recentNotes: Array.isArray(parsed.recentNotes)
+          ? parsed.recentNotes.slice(0, 10)
+          : [...DEFAULT_SETTINGS.recentNotes]
       }
     } catch {
       this.settings = {
         ...DEFAULT_SETTINGS,
-        panelLayout: { ...DEFAULT_SETTINGS.panelLayout }
+        panelLayout: { ...DEFAULT_SETTINGS.panelLayout },
+        notePositions: { ...DEFAULT_SETTINGS.notePositions },
+        recentNotes: [...DEFAULT_SETTINGS.recentNotes]
       }
     }
     return this.get()
@@ -53,6 +67,31 @@ export class SettingsService {
   }
 
   async update(partial: Partial<AppSettings>): Promise<AppSettings> {
+    let recentNotes =
+      partial.recentNotes !== undefined
+        ? [...partial.recentNotes].slice(0, 10)
+        : [...(this.settings.recentNotes || [])]
+
+    // 仅更新 lastNoteId 时，自动补进最近列表（兜底渲染进程未带 recentNotes 的情况）
+    const lastNoteId =
+      partial.lastNoteId !== undefined ? partial.lastNoteId : this.settings.lastNoteId
+    if (lastNoteId && !recentNotes.some((n) => n.id === lastNoteId)) {
+      const name = lastNoteId.split(/[/\\]/).pop()?.replace(/\.md$/i, '') || lastNoteId
+      const folderId =
+        partial.lastFolderId !== undefined
+          ? partial.lastFolderId || '.'
+          : this.settings.lastFolderId || '.'
+      recentNotes = [
+        { id: lastNoteId, name, folderId, openedAt: Date.now() },
+        ...recentNotes.filter((n) => n.id !== lastNoteId)
+      ].slice(0, 10)
+    } else if (lastNoteId && recentNotes[0]?.id !== lastNoteId) {
+      const hit = recentNotes.find((n) => n.id === lastNoteId)
+      if (hit) {
+        recentNotes = [{ ...hit, openedAt: Date.now() }, ...recentNotes.filter((n) => n.id !== lastNoteId)]
+      }
+    }
+
     this.settings = {
       ...this.settings,
       ...partial,
@@ -62,7 +101,12 @@ export class SettingsService {
       panelLayout: {
         ...this.settings.panelLayout,
         ...(partial.panelLayout || {})
-      }
+      },
+      notePositions:
+        partial.notePositions !== undefined
+          ? { ...partial.notePositions }
+          : { ...(this.settings.notePositions || {}) },
+      recentNotes
     }
     // 持久化失败不阻断主题等内存设置生效
     try {
