@@ -232,13 +232,15 @@ export const useLibraryStore = defineStore('library', () => {
     await selectNote(note.id, true)
   }
 
-  /** 按正文第一行同步文件名；同名冲突时自动追加序号 */
+  /** 按正文第一行自动命名：仅在笔记仍是默认「未命名笔记」时生效；已有文件名的文档保持原名 */
   async function syncFileNameFromContent(noteId: string, markdown: string): Promise<string> {
-    const desired = titleFromFirstLine(markdown)
-    if (!desired) return noteId
     const current =
       notes.value.find((n) => n.id === noteId) || findNoteInTree(tree.value, noteId)
-    if (!current || current.name === desired) return noteId
+    // 打开或已有文件名的笔记不再根据正文第一行改文件名
+    if (!current || current.name !== '未命名笔记') return noteId
+    const desired = titleFromFirstLine(markdown)
+    if (!desired) return noteId
+    if (current.name === desired) return noteId
 
     let candidate = desired
     for (let i = 2; i <= 50; i++) {
