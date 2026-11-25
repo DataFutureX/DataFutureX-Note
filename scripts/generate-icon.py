@@ -64,6 +64,7 @@ def make_transparent(im: Image.Image, threshold: int = 248) -> Image.Image:
     return im
 
 
+
 def trim_transparent(im: Image.Image, pad_ratio: float = 0.04) -> Image.Image:
     """去掉大片透明边，让小尺寸任务栏图标主体更大更清晰。"""
     im = im.convert("RGBA")
@@ -76,6 +77,12 @@ def trim_transparent(im: Image.Image, pad_ratio: float = 0.04) -> Image.Image:
     canvas.paste(cropped, (pad, pad), cropped)
     # 方形画布，避免拉伸
     side = max(canvas.size)
+    # 半像素居中：内容中心落在半像素（内容宽度为偶数）时，方形边长必须为偶数，
+    # 否则整数 paste 只能把内容偏移 0.5px，破坏"左右对称设计"的像素级对称性。
+    if (cropped.size[0] % 2) == 1 and (side % 2) == 0:
+        side += 1
+    elif (cropped.size[0] % 2) == 0 and (side % 2) == 1:
+        side += 1
     square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
     square.paste(canvas, ((side - canvas.size[0]) // 2, (side - canvas.size[1]) // 2), canvas)
     return square

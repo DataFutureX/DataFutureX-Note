@@ -1,18 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 136 136" role="img" aria-label="DataFutureX Note">
-  <defs>
-    <linearGradient id="face" x1="16" y1="16" x2="112" y2="112" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#9bbeeb"/>
-      <stop offset="55%" stop-color="#5b8fd9"/>
-      <stop offset="100%" stop-color="#4a7bc4"/>
-    </linearGradient>
-  </defs>
-  <polygon fill="#4a7bc4" points="112,16 120.8,22 120.8,94 112,88"/>
-  <polygon fill="#3a64a6" points="16,112 22,120.8 94,120.8 112,112 88,112"/>
-  <polygon fill="#2f528a" points="112,88 120.8,94 114.4,101.6 94,120.8 88,112"/>
-  <polygon fill="url(#face)" points="16,16 112,16 112,88 88,112 16,112"/>
-  <polygon fill="#4a7bc4" points="88,112 112,88 88,88"/>
-  <path d="M20 20 L108 20 L108 24.8 Q64 22 20 25.2 Z" fill="#ffffff" opacity="0.55"/>
-  <rect x="36" y="42" width="48" height="8" rx="4" fill="#ffffff"/>
-  <rect x="36" y="58" width="40" height="8" rx="4" fill="#ffffff" opacity="0.94"/>
-  <rect x="36" y="74" width="28" height="8" rx="4" fill="#ffffff" opacity="0.84"/>
+  <rect x="20" y="30" width="96" height="88" rx="14" fill="#5B6CF0"/>
+  <path d="M48 52 L88 92" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/>
+  <path d="M88 52 L48 92" stroke="#43D6FF" stroke-width="13" stroke-linecap="round"/>
 </svg>

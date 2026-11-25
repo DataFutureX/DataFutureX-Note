@@ -25,3 +25,6 @@ coverage
 *.tsbuildinfo
 *.md.bak
 
+
+__pycache__/
+*.pyc
